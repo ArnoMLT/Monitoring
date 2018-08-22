@@ -1,0 +1,18 @@
+﻿# nsclient.ini
+# Fichier de configuration NSClient
+
+
+# LISTE DES VARIABLES A REMPLACER AVANT DEPLOIEMENT
+# @@_HOSTNAME_@@				HOST centreon a declarer
+# @@_HTTP_SCRIPTDIR_@@			Chemin complet du repertoire ou trouver les scripts
+# @@_HTTP_CONFIGFILE_@@			Chemin relatif vers le repertoire ou trouver le nsclient.ini definitif
+# @@_HTTP_BASELINEDIR_@@		Chemin complet du repertoire ou trouver le fichier baseline.ini
+# @@_HTTP_CLIENTDIR_@@			Chemin complet du repertoire ou trouver le fichier client.ini
+# @@_CENTREON_DISTANT_@@		Hosts autorises a acceder a nsclient
+
+[/includes]
+client=@@HTTP_CLIENTDIR@@/client.ini
+
+[/settings/NSCA/client]
+hostname = @@HOSTNAME@@
+
