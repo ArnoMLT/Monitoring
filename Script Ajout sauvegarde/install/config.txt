@@ -1,0 +1,5 @@
+;!@Install@!UTF-8!
+Title="Monitoring IT-BS v5.0"
+;BeginPrompt="Do you want to install Monitoring IT-BS v5.0?"
+RunProgram="Setup (a executer avec privileges).bat"
+;!@InstallEnd@!

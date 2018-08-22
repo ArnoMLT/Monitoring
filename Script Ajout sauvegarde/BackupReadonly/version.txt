@@ -1,0 +1,9 @@
+v 1.2
+  - Le disk ne se connecte pas si l'evenement <backup> <753> n'apparait pas. Le service du moteur de sauvegarde par bloc reste souvent démarré inutilement. Ajout d'un net stop pour contourner ce problème.
+  - Ajout de logs dans le l'observateur d'evenements
+
+v1.1
+  - Sortir du mode readonly est tres long alors que mettre un disque online est quasi instantané. Ce procédé sera utilisé a partir de maintenant en temps normal
+
+v1.0
+  - version initiale
