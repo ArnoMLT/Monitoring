@@ -13,8 +13,15 @@
 now=`date +%s`
 commandfile='/var/lib/centreon-engine/rw/centengine.cmd'
 
-
-servicename_in_trap=`echo "$3" | sed -rn 's/^.*backup job ([^.:]+)[.:].*/\1/p'`
+#
+# Match
+# Successfully completed backup job Synchro W Secretariat.
+# Error backup job Backup vers NAS: Source cannot be mounted on the system.
+# 
+# Edit 22/08/2018
+# Case insensitive + modif du motif pour Raidiator 4.x
+# match avec Backup job 002 completed. (nas-TTI) : Backup finished. Wed Aug 22 15:54:24 CEST 2018
+servicename_in_trap=`echo "$3" | sed -rn 's/^.*backup job ([0-9]+|[^.:]+)( completed)?[.:].*/\1/Ip'`
 
 #debug
 echo $1
@@ -29,7 +36,7 @@ test ! "$servicename_in_trap" == "$2" && exit 0
 status=1
 
 # Definition du status du service
-if   [ "$(echo $3 | grep -i '^.*Successfully.*')" ] ; then
+if   [ "$(echo $3 | grep -i '^.*\(Successfully\|finished\).*')" ] ; then
 	status=0
 
 elif [ "$(echo $3 | grep -i '^.*Failure during copy.*')" ] ; then
