@@ -1,0 +1,12 @@
+Source: itbs-apps
+Section: contrib
+Priority: extra
+Maintainer: IT-BS <support@it-bs.fr>
+Build-Depends:
+Standards-Version:
+Homepage: https://www.it-bs.fr
+
+Package: itbs-apps
+Architecture: all
+Depends: ${misc:Depends}, readynasos (>= 6.0.5~T1271), snmptrapd (>= 5.7.), nsca-client (>= 2.9.1-~), perl (>= 5.)
+Description: Module Developpe par IT-BS. Monitoring personnalise, ddclient personnalise, ...

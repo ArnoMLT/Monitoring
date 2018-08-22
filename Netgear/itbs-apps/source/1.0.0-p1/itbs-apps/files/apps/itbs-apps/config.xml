@@ -1,0 +1,13 @@
+<Application resource-id="itbs-apps"><!-- 'resource-id' must be AppName -->
+  <Name>Module IT-BS</Name><!-- Any desciptive name, upto 48 chars -->
+  <Category>APP_CAT_SUPPORT_TECH</Category>
+  <Author>IT-BS</Author><!-- Authors name. upto 48 chars -->
+  <Version>1.0.0-p1</Version><!-- Version -->
+  <RequireReboot>0</RequireReboot><!-- If non-zero, it indicates reboot is required. -->
+  <ConfigURL></ConfigURL><!-- 'localhost' will be replaced by framework JS. -->
+  <LaunchURL></LaunchURL><!-- 'localhost' will be replaced by framework JS. -->
+  <ReservePort>162</ReservePort>
+  <DebianPackage>itbs-apps</DebianPackage>
+  <ServiceName/><!-- no service required -->
+  <Description lang="fr-fr">Module Développé par IT-BS. Monitoring personnalisé, ddclient personnalisé, ...</Description>
+</Application>

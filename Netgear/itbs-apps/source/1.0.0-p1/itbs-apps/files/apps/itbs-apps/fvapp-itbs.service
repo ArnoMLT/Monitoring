@@ -1,0 +1,13 @@
+[Unit]
+Description=Service for itbs-apps
+After=apache2.service
+
+[Service]
+Type=forking
+ExecStart=/etc/init.d/snmptrapd start
+ExecStop=/etc/init.d/snmptrapd stop
+PIDFile=/var/run/snmptrapd.pid
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
