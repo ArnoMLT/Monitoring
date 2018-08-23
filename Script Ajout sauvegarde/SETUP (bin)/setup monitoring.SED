@@ -1,0 +1,47 @@
+[Version]
+Class=IEXPRESS
+SEDVersion=3
+[Options]
+PackagePurpose=InstallApp
+ShowInstallProgramWindow=0
+HideExtractAnimation=1
+UseLongFileName=1
+InsideCompressed=0
+CAB_FixedSize=0
+CAB_ResvCodeSigning=0
+RebootMode=N
+InstallPrompt=%InstallPrompt%
+DisplayLicense=%DisplayLicense%
+FinishMessage=%FinishMessage%
+TargetName=%TargetName%
+FriendlyName=%FriendlyName%
+AppLaunched=%AppLaunched%
+PostInstallCmd=%PostInstallCmd%
+AdminQuietInstCmd=%AdminQuietInstCmd%
+UserQuietInstCmd=%UserQuietInstCmd%
+SourceFiles=SourceFiles
+[Strings]
+InstallPrompt=
+DisplayLicense=
+FinishMessage=
+TargetName=C:\Users\MLT\Documents\Travail\GitHub\Monitoring\Script Ajout sauvegarde\SETUP (bin)\setup monitoring.exe
+FriendlyName=Monitoring IT-BS
+AppLaunched=cmd /c Setup.bat
+PostInstallCmd=<None>
+AdminQuietInstCmd=
+UserQuietInstCmd=
+FILE0="libeay32.dll"
+FILE1="libiconv2.dll"
+FILE2="libintl3.dll"
+FILE3="libssl32.dll"
+FILE4="Setup.bat"
+FILE5="wget.exe"
+[SourceFiles]
+SourceFiles0=C:\Users\MLT\Documents\Travail\GitHub\Monitoring\Script Ajout sauvegarde\SETUP (sources)\
+[SourceFiles0]
+%FILE0%=
+%FILE1%=
+%FILE2%=
+%FILE3%=
+%FILE4%=
+%FILE5%=

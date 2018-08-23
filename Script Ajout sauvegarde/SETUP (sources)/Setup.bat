@@ -71,6 +71,7 @@ REM Lancement du script d'installation / mise a jour
 REM =================================================
 echo Lancement de : "%Install_Dir%\(A executer avec privileges).bat"
 cd "%Install_Dir%"
+set auto=yes
 call "(A executer avec privileges).bat"
 
 
