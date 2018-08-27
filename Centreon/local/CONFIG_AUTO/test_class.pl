@@ -11,14 +11,23 @@ use lib dirname (abs_path(__FILE__));
 use NSClient;
 
 
-my $nsclient = NSClient->new(
-	{ config_file => '/cygdrive/c/Users/MLT/Desktop/nsclient.ini' }
-);
+# my $nsclient = NSClient->new(
+	# { config_file => '/cygdrive/c/Users/MLT/Desktop/nsclient.ini' }
+# );
 
-$nsclient->load() or die "KO";
+# $nsclient->load() or die "KO";
 
-$nsclient->write_to_file ("/cygdrive/c/Users/MLT/Desktop/nsclient_new.ini") or die "KO";
+# $nsclient->write_to_file ("/cygdrive/c/Users/MLT/Desktop/nsclient_new.ini") or die "KO";
 
-# pour tests uniquement
-$nsclient->{config_file} = "/cygdrive/c/Users/MLT/Desktop/nsclient_new.ini";
-$nsclient->merge_file_inside("/cygdrive/c/Users/MLT/Desktop/template.ini") or die "KO2";
+#pour tests uniquement
+# $nsclient->{config_file} = "/cygdrive/c/Users/MLT/Desktop/nsclient_new.ini";
+# $nsclient->merge_file_inside("/cygdrive/c/Users/MLT/Desktop/template.ini") or die "KO2";
+
+ my $nsclient = NSClient->new(
+	 { config_file => '/cygdrive/c/Users/MLT/Desktop/testing centreon/nsclient.ini' }
+ );
+ $nsclient->load();
+ 
+ $nsclient->import_template_inside("/cygdrive/c/Users/MLT/Desktop/testing centreon/Apps-Backup-Veeam-Backup-NRPE.ini");
+ $nsclient->save();
+ 

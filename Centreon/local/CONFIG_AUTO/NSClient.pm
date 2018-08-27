@@ -38,14 +38,17 @@ sub new {
 
 
 #
-# Lit le fichier ini $config_file
-# et retourne un href avec le contenu du fichier
+# Lit le fichier ini $config_file et retourne une reference vers le href crée
 # les noms de section sont converties en minuscules
 # les clés aussi. Seules les valeurs restent inchangées.
+# $token modifie le comportement :
+# si défini, on ne lit que les lignes de commentaire qui commencent par ce token
+#   le token'++' va permettre d'ajouter uniquement ces lignes
 #
 sub read_from_file {
-	my ($self, $config_file) = @_;
+	my ($self, $config_file, $token) = @_;
 	my $current_section;
+	my $href = {};
 	
 	# Ouverture du fichier de config NSClient++
 	if (open(my $file, '<', $config_file)){
@@ -53,38 +56,22 @@ sub read_from_file {
 			chomp($line);
 
 			# On saute les commentaires et les lignes vides
-			if ($line !~ /^[;#]/ && $line !~ /^\s*$/){
-				#print "$line\n";
+			if (! $token && $line !~ /^[;#]/ && $line !~ /^\s*$/){
+				print "1-$line\n";
+				$current_section = $self->_parse_one_line($href, $current_section, $line);
 				
-				# Sections
-				if ($line =~ /\[(.*)\]/){
-					if (substr ($1, 0, 1) ne "/"){
-						$current_section = undef;
-						next;
-					}
+			}else{
+				#ligne de commentaire ou ligne vide et on sait pas pour $token
+				if ($token && $line =~ /^[;#]/ && $line !~ /^\s*$/){
+					$line =~ s/^[;#]+\s*//; # enleve la mise en commentaire
 					
-					$current_section = lc $1;
-					my @sections = split (/\//, $current_section);
-					shift @sections;
-					
-					$self->merge_hash_inside($self->_split_sections_into_href(@sections));
-				
-				} else { # clés
-					if (defined($current_section)){
-						my @keys = split(/=/, $line);
-						if (scalar(@keys) > 2){
-							warn "exclusion de la ligne $. : Plusieurs signes '='";
-						}else{
-							my ($key, $value) = @keys;
-							$key=~ s/^\s*(.*?)\s*$/$1/;
-							$key = lc $key;
-							$value=~ s/^\s*(.*?)\s*$/$1/;
-							#print "key=$key; value=$value;\n";
-							$self->set_section_value($current_section, $key, $value);
-						}
+					if ($line =~/^\Q$token/){		
+						$line =~ s/^\Q$token\E\s*//;
+						print "2-$line\n";
+						$current_section = $self->_parse_one_line($href, $current_section, $line);
 					}
 				}
-			}	
+			}
 		}
 		close($file);
 	
@@ -92,7 +79,19 @@ sub read_from_file {
 		warn "Impossible d'ouvrir '$config_file' : $!";
 	}
 	
-	return %{$self->{config_href}};
+	return $href;
+}
+
+
+#
+#
+#
+sub read_from_file_inside {
+	my ($self, $config_file, $token) = @_;
+
+	$self->{config_href} = $self->read_from_file($config_file, $token);
+	
+	return $self->{config_href};
 }
 
 
@@ -102,7 +101,7 @@ sub read_from_file {
 sub load {
 	my $self = shift;
 	
-	return $self->read_from_file($self->{config_file});
+	return $self->read_from_file_inside($self->{config_file});
 }
 
 
@@ -132,6 +131,61 @@ sub save {
 	my $self = shift;
 	
 	return $self->write_to_file($self->{config_file});
+}
+
+
+#
+# scan le fichier $template_file et traite les lignes avec ++ comme un ajout
+# dans le fichier de config de la classe
+#
+sub import_template_inside {
+	my ($self, $template_file) = @_;
+	my $template_hash;
+	
+	$self->merge_hash_inside($self->read_from_file($template_file, "++"));
+}
+
+
+#
+# traite une $line en lecture et l'insere dans $href
+#
+sub _parse_one_line {
+	my ($self, $href, $current_section, $line) = @_;
+	
+	# Sections
+	if ($line =~ /\[(.*)\]/){
+		if (substr ($1, 0, 1) ne "/"){
+			warn "Exclusion de la ligne $. : La section ne commence pas par '/'";
+			#$current_section = undef;
+			#next;
+			return undef;
+		}
+		
+		$current_section = lc $1;
+		my @sections = split (/\//, $current_section);
+		shift @sections;
+		
+		$self->_merge_hash($href, $self->_split_sections_into_href(@sections));
+	
+	} else { # clés
+		if (defined($current_section)){
+			my @keys = split(/=/, $line);
+			if (scalar(@keys) > 2){
+				warn "Exclusion de la ligne $. : Plusieurs signes '='";
+			}else{
+				my ($key, $value) = @keys;
+				$key=~ s/^\s*(.*?)\s*$/$1/;
+				$key = lc $key;
+				$value=~ s/^\s*(.*?)\s*$/$1/;
+				# print "key=$key; value=$value;\n";
+				$self->set_section_value($href, $current_section, $key, $value);
+			}
+		}else{
+			warn "Exclusion de la ligne $. : Pas de section définie. $line";
+		}
+	}
+
+	return $current_section;
 }
 
 
@@ -185,16 +239,6 @@ sub get_config {
 
 
 #
-# fusion du $hash_new dans le config_href de la classe
-#
-sub merge_hash_inside {
-	my ($self, $hash_new) = @_;
-	
-	return $self->_merge_hash($self->{config_href}, $hash_new);
-}
-
-
-#
 # fusion du contenu du hash_new dans $hash1
 # 
 sub _merge_hash {
@@ -211,8 +255,18 @@ sub _merge_hash {
 			}
 		}
 	}
-	
+
 	return undef;
+}
+
+
+#
+# fusion du $hash_new dans le config_href de la classe
+#
+sub merge_hash_inside {
+	my ($self, $hash_new) = @_;
+	
+	return $self->_merge_hash($self->{config_href}, $hash_new);
 }
 
 
@@ -221,8 +275,8 @@ sub _merge_hash {
 # retourne undef si n'existe pas
 #
 sub get_section_href {
-	my ($self, $section) = @_;
-	my  $href = $self->{config_href};
+	my ($self, $hash, $section) = @_;
+	my $href = $hash;
 	
 	my @sections = split (/\//, $section);
 	shift @sections;
@@ -241,10 +295,10 @@ sub get_section_href {
 # retourne undef si $key ou $section n'existe pas
 # 
 sub get_section_value {
-	my ($self, $section, $key) = @_;
+	my ($self, $hash, $section, $key) = @_;
 	my ($value, $href);
 	
-	$href = $self->get_section_href($section);
+	$href = $self->get_section_href($hash, $section);
 	if (defined($href)){
 		$value = $href->{$key};
 	}
@@ -258,10 +312,10 @@ sub get_section_value {
 # retourne le href de la section, undef si n'existe pas
 #
 sub set_section_value {
-	my ($self, $section, $key, $value) = @_;
+	my ($self, $hash, $section, $key, $value) = @_;
 	my $href;
 	
-	$href = $self->get_section_href($section);
+	$href = $self->get_section_href($hash, $section);
 	if (defined($href)){
 		$href->{$key} = $value;
 	}
