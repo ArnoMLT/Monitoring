@@ -1,9 +1,26 @@
+# MLT
+# 26/08/2018
+#
+# Package de manipulation des fichiers ini produits par NSClient++ (windows)
+#
+
 package NSClient;
 
 use strict;
 use warnings;
+use Carp;
 
 use Data::Dumper;
+
+
+
+#
+# TODO :
+# - ajouter le nom du fichier .ini et créer 2 classes de lecture et réecriture directe (load et save) - DONE
+# - creer une sub pour injecter le contenu d'un fichier dans son propre fichier de conf - DONE
+# - creer une sub pour injecter directement une clé dans une section de son propre fichier de conf - existe deja ! set_section_value
+
+
 
 
 sub new {
@@ -13,9 +30,11 @@ sub new {
 	bless $self, $class;
 	
 	$self->{config_href} = {};
+	$self->{config_file} = $args->{config_file};
 	
 	return $self;
 }
+
 
 
 #
@@ -48,7 +67,7 @@ sub read_from_file {
 					my @sections = split (/\//, $current_section);
 					shift @sections;
 					
-					$self->merge_hash($self->{config_href}, $self->split_sections_into_href(@sections));
+					$self->merge_hash_inside($self->_split_sections_into_href(@sections));
 				
 				} else { # clés
 					if (defined($current_section)){
@@ -70,10 +89,20 @@ sub read_from_file {
 		close($file);
 	
 	} else {
-		warn "Impossible d'ouvrir $config_file : $!";
+		warn "Impossible d'ouvrir '$config_file' : $!";
 	}
 	
 	return %{$self->{config_href}};
+}
+
+
+#
+# charge le fichier de la classe
+#
+sub load {
+	my $self = shift;
+	
+	return $self->read_from_file($self->{config_file});
 }
 
 
@@ -84,52 +113,25 @@ sub write_to_file {
 	my ($self, $config_file) = @_;
 	
 	# Ouverture du fichier de config NSClient++
-	open(my $file, ">", $config_file) or die ("Impossible de créer $config_file : $!\n");
+	if (open(my $file, ">", $config_file)){
+		$self->_write_hash_to_file($file, $self->{config_href}, "");	
+		
+		close($file) or warn "Erreur a l'enregistrement du fichier";
 	
-	$self->write_hash_to_file($file, $self->{config_href}, "");
-	
-	close($file);
+	}else{
+		warn "Impossible de créer '$config_file' : $!";
+		return;
+	}
 }
 
 
 #
-# 
-# Ecrit toutes les valeurs de la section courante
-# puis fait de meme RECURSIVEMENT pour les sous sections
-# $current_section est un string de la section en cours
-#  ex: /settings/nsca
+# enregistre le fichier de la classe
 #
-sub write_hash_to_file{
-	my ($self, $file, $href, $current_section) = @_;
-	my (%values, %hrefs);
+sub save {
+	my $self = shift;
 	
-	# Creation de 2 listes avec les valeurs, et les href
-	foreach my $key (keys(%$href)){
-		if (ref($href->{$key}) eq "HASH"){
-			$hrefs{$key} = $href->{$key};
-			
-		}else{
-			$values{$key} = $href->{$key};
-		}
-	}
-	
-	# Si %values contient des donnees, il faudra aussi écrire la [section]
-	if(%values){
-		print $file "[$current_section]\r\n";
-		#print "[$current_section]\n";
-		
-		foreach my $key (sort {lc $a cmp lc $b} keys(%values)){	
-			print $file "$key = $values{$key}\r\n";
-			#print "$key = $values{$key}\n";
-		}
-		print $file "\r\n";
-		#print "\n";
-	}
-	
-	# sous sections
-	foreach my $key (sort {lc $a cmp lc $b} keys(%hrefs)){
-		$self->write_hash_to_file($file, \%{$hrefs{$key}}, $current_section."/".$key);
-	}
+	return $self->write_to_file($self->{config_file});
 }
 
 
@@ -140,12 +142,12 @@ sub write_hash_to_file{
 #						'nrpe' => {}
 #					 }
 #
-sub split_sections_into_href {
+sub _split_sections_into_href {
 	my ($self, $section_up, @sections) = @_;
 	my $temp = {};
 	
 	if (defined($section_up)){
-		$temp->{lc $section_up} = $self->split_sections_into_href(@sections);
+		$temp->{lc $section_up} = $self->_split_sections_into_href(@sections);
 	}
 
 	return $temp;
@@ -153,9 +155,49 @@ sub split_sections_into_href {
 
 
 #
+# injecte le contenu de $file_out (string) dans le fichier de conf de la classe
+# la methode load() doit avoir ete appelee avant.
+#
+sub merge_file_inside {
+	my ($self, $file_out) = @_;
+	
+	# print Dumper($file_out);
+	croak "load() non effectué ou \$config_href invalide" if (not $self->{config_href});
+	
+	# Charge le fichier $file_out
+	my $nsclient_out = NSClient->new({config_file => $file_out});
+	$nsclient_out->load() or croak "Impossible de charger le fichier '$file_out'";
+	
+	$self->merge_hash_inside($nsclient_out->get_config());
+	
+	return $self->save();
+}
+
+
+#
+# retourne le config_href de la classe
+#
+sub get_config {
+	my $self = shift;
+	
+	return $self->{config_href};
+}
+
+
+#
+# fusion du $hash_new dans le config_href de la classe
+#
+sub merge_hash_inside {
+	my ($self, $hash_new) = @_;
+	
+	return $self->_merge_hash($self->{config_href}, $hash_new);
+}
+
+
+#
 # fusion du contenu du hash_new dans $hash1
 # 
-sub merge_hash {
+sub _merge_hash {
 	my ($self, $hash1, $hash_new) = @_;
 	my @keys;
 	
@@ -163,7 +205,7 @@ sub merge_hash {
 	if (%$hash_new){
 		foreach my $key (keys(%$hash_new)){
 			if (defined($hash1->{$key})){
-				$self->merge_hash($hash1->{$key}, $hash_new->{$key})
+				$self->_merge_hash($hash1->{$key}, $hash_new->{$key})
 			}else{
 				$hash1->{$key} = $hash_new->{$key};
 			}
@@ -175,7 +217,7 @@ sub merge_hash {
 
 
 #
-# renvoie un href vers la section
+# renvoie un href vers la section (string)
 # retourne undef si n'existe pas
 #
 sub get_section_href {
@@ -225,6 +267,47 @@ sub set_section_value {
 	}
 	
 	return $href;
+}
+
+
+#
+# 
+# Ecrit toutes les valeurs de la section courante
+# puis fait de meme RECURSIVEMENT pour les sous sections
+# $current_section est un string de la section en cours
+#  ex: /settings/nsca
+#
+sub _write_hash_to_file{
+	my ($self, $file, $href, $current_section) = @_;
+	my (%values, %hrefs);
+	
+	# Creation de 2 listes avec les valeurs, et les href
+	foreach my $key (keys(%$href)){
+		if (ref($href->{$key}) eq "HASH"){
+			$hrefs{$key} = $href->{$key};
+			
+		}else{
+			$values{$key} = $href->{$key};
+		}
+	}
+	
+	# Si %values contient des donnees, il faudra aussi écrire la [section]
+	if(%values){
+		print $file "[$current_section]\r\n";
+		#print "[$current_section]\n";
+		
+		foreach my $key (sort {lc $a cmp lc $b} keys(%values)){	
+			print $file "$key = $values{$key}\r\n";
+			#print "$key = $values{$key}\n";
+		}
+		print $file "\r\n";
+		#print "\n";
+	}
+	
+	# sous sections
+	foreach my $key (sort {lc $a cmp lc $b} keys(%hrefs)){
+		$self->_write_hash_to_file($file, \%{$hrefs{$key}}, $current_section."/".$key);
+	}
 }
 
 
