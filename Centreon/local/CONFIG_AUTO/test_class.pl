@@ -22,12 +22,13 @@ use NSClient;
 #pour tests uniquement
 # $nsclient->{config_file} = "/cygdrive/c/Users/MLT/Desktop/nsclient_new.ini";
 # $nsclient->merge_file_inside("/cygdrive/c/Users/MLT/Desktop/template.ini") or die "KO2";
+print "load\n";
+my $nsclient = NSClient->new(
+ { config_file => '/cygdrive/c/Users/MLT/Desktop/testing centreon/nsclient.ini' }
+);
+#$nsclient->load();
+print "Import_inside\n";
+$nsclient->import_template_inside("/cygdrive/c/Users/MLT/Desktop/testing centreon/Apps-Backup-Veeam-Backup-NRPE.ini");
+$nsclient->save();
 
- my $nsclient = NSClient->new(
-	 { config_file => '/cygdrive/c/Users/MLT/Desktop/testing centreon/nsclient.ini' }
- );
- $nsclient->load();
- 
- $nsclient->import_template_inside("/cygdrive/c/Users/MLT/Desktop/testing centreon/Apps-Backup-Veeam-Backup-NRPE.ini");
- $nsclient->save();
- 
+

@@ -16,9 +16,7 @@ use Data::Dumper;
 
 #
 # TODO :
-# - ajouter le nom du fichier .ini et créer 2 classes de lecture et réecriture directe (load et save) - DONE
-# - creer une sub pour injecter le contenu d'un fichier dans son propre fichier de conf - DONE
-# - creer une sub pour injecter directement une clé dans une section de son propre fichier de conf - existe deja ! set_section_value
+#  - Gerer l'ordre des attachements
 
 
 
@@ -31,6 +29,8 @@ sub new {
 	
 	$self->{config_href} = {};
 	$self->{config_file} = $args->{config_file};
+	
+	$self->load();
 	
 	return $self;
 }
@@ -56,8 +56,8 @@ sub read_from_file {
 			chomp($line);
 
 			# On saute les commentaires et les lignes vides
-			if (! $token && $line !~ /^[;#]/ && $line !~ /^\s*$/){
-				print "1-$line\n";
+			# prise en compte en debut de ligne de l'encode BOM éventuel
+			if (! $token && $line !~ /^[^[:print:]]*\s*[;#]/ && $line !~ /^[^[:print:]]*\s*$/){
 				$current_section = $self->_parse_one_line($href, $current_section, $line);
 				
 			}else{
@@ -67,7 +67,6 @@ sub read_from_file {
 					
 					if ($line =~/^\Q$token/){		
 						$line =~ s/^\Q$token\E\s*//;
-						print "2-$line\n";
 						$current_section = $self->_parse_one_line($href, $current_section, $line);
 					}
 				}
@@ -84,14 +83,14 @@ sub read_from_file {
 
 
 #
-#
+# injecte le href cree par read_from_file dans le $config_href de la classe en l'ecrasant
 #
 sub read_from_file_inside {
 	my ($self, $config_file, $token) = @_;
 
 	$self->{config_href} = $self->read_from_file($config_file, $token);
 	
-	return $self->{config_href};
+	return $self->get_config();
 }
 
 
@@ -106,14 +105,14 @@ sub load {
 
 
 #
-# lance l'écriture du contenu du href $config_href dans le fichier $config_file
+# lance l'écriture du contenu du config_href de la classe dans le fichier $config_file
 #
 sub write_to_file {
 	my ($self, $config_file) = @_;
 	
 	# Ouverture du fichier de config NSClient++
 	if (open(my $file, ">", $config_file)){
-		$self->_write_hash_to_file($file, $self->{config_href}, "");	
+		$self->_write_hash_to_file($file, $self->get_config(), "");	
 		
 		close($file) or warn "Erreur a l'enregistrement du fichier";
 	
@@ -156,8 +155,6 @@ sub _parse_one_line {
 	if ($line =~ /\[(.*)\]/){
 		if (substr ($1, 0, 1) ne "/"){
 			warn "Exclusion de la ligne $. : La section ne commence pas par '/'";
-			#$current_section = undef;
-			#next;
 			return undef;
 		}
 		
@@ -198,13 +195,13 @@ sub _parse_one_line {
 #
 sub _split_sections_into_href {
 	my ($self, $section_up, @sections) = @_;
-	my $temp = {};
+	my $href = {};
 	
 	if (defined($section_up)){
-		$temp->{lc $section_up} = $self->_split_sections_into_href(@sections);
+		$href->{lc $section_up} = $self->_split_sections_into_href(@sections);
 	}
 
-	return $temp;
+	return $href;
 }
 
 
@@ -216,7 +213,7 @@ sub merge_file_inside {
 	my ($self, $file_out) = @_;
 	
 	# print Dumper($file_out);
-	croak "load() non effectué ou \$config_href invalide" if (not $self->{config_href});
+	croak "load() non effectué ou \$config_href invalide" if (not get_config());
 	
 	# Charge le fichier $file_out
 	my $nsclient_out = NSClient->new({config_file => $file_out});
@@ -239,16 +236,16 @@ sub get_config {
 
 
 #
-# fusion du contenu du hash_new dans $hash1
+# fusion du contenu du hash_new dans $hash1 RECURSIVEMENT
 # 
 sub _merge_hash {
 	my ($self, $hash1, $hash_new) = @_;
 	my @keys;
-	
+
 	# On n'insere pas un hash vide {} si key est deja existante
 	if (%$hash_new){
 		foreach my $key (keys(%$hash_new)){
-			if (defined($hash1->{$key})){
+			if (defined($hash1->{$key}) && ref($hash1->{$key}) eq 'HASH'){
 				$self->_merge_hash($hash1->{$key}, $hash_new->{$key})
 			}else{
 				$hash1->{$key} = $hash_new->{$key};
@@ -266,7 +263,7 @@ sub _merge_hash {
 sub merge_hash_inside {
 	my ($self, $hash_new) = @_;
 	
-	return $self->_merge_hash($self->{config_href}, $hash_new);
+	return $self->_merge_hash($self->get_config(), $hash_new);
 }
 
 
