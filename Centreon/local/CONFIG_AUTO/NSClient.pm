@@ -11,7 +11,7 @@ use warnings;
 use Carp;
 
 use Data::Dumper;
-
+use List::MoreUtils qw(first_index);
 
 
 #
@@ -55,12 +55,14 @@ sub read_from_file {
 		while (my $line  = <$file> ){
 			chomp($line);
 
+			# ---> $token n'est pas renseigné <---
 			# On saute les commentaires et les lignes vides
 			# prise en compte en debut de ligne de l'encode BOM éventuel
 			if (! $token && $line !~ /^[^[:print:]]*\s*[;#]/ && $line !~ /^[^[:print:]]*\s*$/){
 				$current_section = $self->_parse_one_line($href, $current_section, $line);
 				
 			}else{
+				# ---> $token est renseigné <---
 				#ligne de commentaire ou ligne vide et on sait pas pour $token
 				if ($token && $line =~ /^[;#]/ && $line !~ /^\s*$/){
 					$line =~ s/^[;#]+\s*//; # enleve la mise en commentaire
@@ -159,23 +161,39 @@ sub _parse_one_line {
 		}
 		
 		$current_section = lc $1;
-		my @sections = split (/\//, $current_section);
-		shift @sections;
 		
-		$self->_merge_hash($href, $self->_split_sections_into_href(@sections));
+		# Si on est sur la section '/includes' on insère dans une liste pour respecter l'ordre
+		if ($current_section eq "/includes"){
+			print "1-/includes\n";
+			$href->{'includes'} = ();
+		# }
+		}else{
+			my @sections = split (/\//, $current_section);
+			shift @sections;
+		
+			$self->_merge_hash($href, $self->_split_sections_into_href(@sections));
+		}
 	
 	} else { # clés
 		if (defined($current_section)){
 			my @keys = split(/=/, $line);
 			if (scalar(@keys) > 2){
 				warn "Exclusion de la ligne $. : Plusieurs signes '='";
+			
 			}else{
 				my ($key, $value) = @keys;
 				$key=~ s/^\s*(.*?)\s*$/$1/;
 				$key = lc $key;
 				$value=~ s/^\s*(.*?)\s*$/$1/;
 				# print "key=$key; value=$value;\n";
-				$self->set_section_value($href, $current_section, $key, $value);
+
+				# Si on est sur la section '/includes' on insère dans une liste pour respecter l'ordre
+				if ($current_section eq "/includes"){
+					$self->_set_order_section_value($href, $current_section, $key, $value);
+				
+				}else{				
+					$self->set_section_value($href, $current_section, $key, $value);
+				}
 			}
 		}else{
 			warn "Exclusion de la ligne $. : Pas de section définie. $line";
@@ -246,7 +264,12 @@ sub _merge_hash {
 	if (%$hash_new){
 		foreach my $key (keys(%$hash_new)){
 			if (defined($hash1->{$key}) && ref($hash1->{$key}) eq 'HASH'){
-				$self->_merge_hash($hash1->{$key}, $hash_new->{$key})
+				$self->_merge_hash($hash1->{$key}, $hash_new->{$key});
+			
+			# Prise en compte de listes pour les sections dont l'ordre est important
+			}elsif (defined($hash1->{$key}) && ref($hash1->{$key}) eq 'ARRAY'){
+				$self->_merge_list($hash1->{$key}, $hash_new->{$key});
+			
 			}else{
 				$hash1->{$key} = $hash_new->{$key};
 			}
@@ -266,6 +289,27 @@ sub merge_hash_inside {
 	return $self->_merge_hash($self->get_config(), $hash_new);
 }
 
+
+#
+#
+#
+sub _merge_list {
+	my ($self, $list1, $list_new) = @_;
+	
+	while (@$list_new){
+		my $key = shift(@$list_new);
+		my $value = shift(@$list_new);
+		
+		# Si la clé existe déjà, on supprime la clé et la valeur associée pour mettre la nouvelle entrée a la fin
+		my $i = first_index {$_ eq $key} @$list1;
+		
+		if ($i > -1){ # existe deja
+			#@$list1[$i+1] = $value;
+			splice(@$list1, $i, 2);	
+		}
+		push(@$list1, ($key, $value));
+	}
+}
 
 #
 # renvoie un href vers la section (string)
@@ -322,6 +366,25 @@ sub set_section_value {
 
 
 #
+# idem que set_section_value mais crée un liste plutot qu'un hash
+#
+sub _set_order_section_value {
+	my ($self, $href, $section, $key, $value) = @_;
+	my $list_ref;
+	
+	#$href = $self->get_section_href($hash, substr($section,1));
+	#if (defined($href)){
+		push (@{$href->{substr($section,1)}}, ($key, $value));
+		# push (@{$list_ref}, ($key, $value));
+	#}
+	
+	# return $href;
+	$href->{substr($section,1)}
+	
+}
+
+
+#
 # 
 # Ecrit toutes les valeurs de la section courante
 # puis fait de meme RECURSIVEMENT pour les sous sections
@@ -331,11 +394,16 @@ sub set_section_value {
 sub _write_hash_to_file{
 	my ($self, $file, $href, $current_section) = @_;
 	my (%values, %hrefs);
+	my @list = ();
 	
 	# Creation de 2 listes avec les valeurs, et les href
 	foreach my $key (keys(%$href)){
 		if (ref($href->{$key}) eq "HASH"){
 			$hrefs{$key} = $href->{$key};
+			
+		}elsif (ref($href->{$key}) eq "ARRAY"){
+			push (@list, ("$current_section/$key"));
+			push (@list, @{$href->{$key}});
 			
 		}else{
 			$values{$key} = $href->{$key};
@@ -343,16 +411,35 @@ sub _write_hash_to_file{
 	}
 	
 	# Si %values contient des donnees, il faudra aussi écrire la [section]
-	if(%values){
+	if(%values){ 
 		print $file "[$current_section]\r\n";
-		#print "[$current_section]\n";
+		# print "[$current_section]\n";
 		
 		foreach my $key (sort {lc $a cmp lc $b} keys(%values)){	
 			print $file "$key = $values{$key}\r\n";
-			#print "$key = $values{$key}\n";
+			# print "$key = $values{$key}\n";
 		}
+		
 		print $file "\r\n";
-		#print "\n";
+		# print "\n";
+	}
+	
+	# Cette section ne doit pas etre triée pour garder la priorité et l'héritage des templates
+	if (scalar(@list)){
+		my $order_section = shift(@list);
+		
+		print $file "[$order_section]\r\n";
+		# print "[$order_section]\n";
+		
+		while (@list){
+			my $key_in_list = shift(@list);
+			my $value_in_list = shift(@list);
+			print $file "$key_in_list = $value_in_list\r\n";
+			# print "$key_in_list = $value_in_list\n";
+		}
+		
+		print $file "\r\n";
+		# print "\n";
 	}
 	
 	# sous sections

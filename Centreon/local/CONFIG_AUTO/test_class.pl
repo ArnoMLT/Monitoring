@@ -26,9 +26,19 @@ print "load\n";
 my $nsclient = NSClient->new(
  { config_file => '/cygdrive/c/Users/MLT/Desktop/testing centreon/nsclient.ini' }
 );
+
+print Dumper($nsclient);
+
 #$nsclient->load();
 print "Import_inside\n";
-$nsclient->import_template_inside("/cygdrive/c/Users/MLT/Desktop/testing centreon/Apps-Backup-Veeam-Backup-NRPE.ini");
+$nsclient->import_template_inside("/cygdrive/c/Users/MLT/Desktop/testing centreon/Modele_NSCA.ini");
 $nsclient->save();
 
 
+
+$nsclient->import_template_inside("/cygdrive/c/Users/MLT/Desktop/testing centreon/Apps-Backup-VeeamAgent-Backup-NSCA.ini");
+$nsclient->save();
+
+
+$nsclient->import_template_inside("/cygdrive/c/Users/MLT/Desktop/testing centreon/OS-Windows-NSCA.ini");
+$nsclient->save();
