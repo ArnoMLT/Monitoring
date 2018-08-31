@@ -164,7 +164,6 @@ sub _parse_one_line {
 		
 		# Si on est sur la section '/includes' on insère dans une liste pour respecter l'ordre
 		if ($current_section eq "/includes"){
-			print "1-/includes\n";
 			$href->{'includes'} = ();
 		# }
 		}else{
