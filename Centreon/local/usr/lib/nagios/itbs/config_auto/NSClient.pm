@@ -143,9 +143,28 @@ sub import_template_inside {
 	my ($self, $template_file) = @_;
 	my $template_hash;
 	
+	# Import des nouveaux templates
 	$self->merge_hash_inside($self->read_from_file($template_file, "++"));
 }
 
+
+#
+# Vide la liste des 'includes' dans le config_href de la classe
+# hormis l'entrée 'client' qui n'est pas un template
+#
+sub prune_templates_inside {
+	my $self = shift;
+	my @includes;
+	my $includes_ref = $self->get_config()->{'includes'};
+	
+	my $i = first_index {$_ eq "client"} @$includes_ref;
+	
+	if ($i > -1){ # existe
+		@includes = splice(@$includes_ref, $i, 2);
+	}
+	
+	@$includes_ref = @includes;
+}
 
 #
 # traite une $line en lecture et l'insere dans $href
@@ -176,11 +195,14 @@ sub _parse_one_line {
 	} else { # clés
 		if (defined($current_section)){
 			my @keys = split(/=/, $line);
-			if (scalar(@keys) > 2){
-				warn "Exclusion de la ligne $. : Plusieurs signes '='";
+			# if (scalar(@keys) > 2){
+				# warn "Exclusion de la ligne $. : Plusieurs signes '='";
 			
-			}else{
-				my ($key, $value) = @keys;
+			# }else{
+				# my ($key, $value) = @keys;
+				my $key = shift @keys;
+				my $value = join('=', @keys);
+				
 				$key=~ s/^\s*(.*?)\s*$/$1/;
 				$key = lc $key;
 				$value=~ s/^\s*(.*?)\s*$/$1/;
@@ -193,7 +215,7 @@ sub _parse_one_line {
 				}else{				
 					$self->set_section_value($href, $current_section, $key, $value);
 				}
-			}
+			# }
 		}else{
 			warn "Exclusion de la ligne $. : Pas de section définie. $line";
 		}
@@ -295,7 +317,7 @@ sub merge_hash_inside {
 sub _merge_list {
 	my ($self, $list1, $list_new) = @_;
 	
-	while (@$list_new){
+	while (defined (@$list_new) && @$list_new){
 		my $key = shift(@$list_new);
 		my $value = shift(@$list_new);
 		
@@ -371,14 +393,9 @@ sub _set_order_section_value {
 	my ($self, $href, $section, $key, $value) = @_;
 	my $list_ref;
 	
-	#$href = $self->get_section_href($hash, substr($section,1));
-	#if (defined($href)){
-		push (@{$href->{substr($section,1)}}, ($key, $value));
-		# push (@{$list_ref}, ($key, $value));
-	#}
+	push (@{$href->{substr($section,1)}}, ($key, $value));		
 	
-	# return $href;
-	$href->{substr($section,1)}
+	return $href->{substr($section,1)}
 	
 }
 
