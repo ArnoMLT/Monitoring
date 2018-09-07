@@ -27,8 +27,12 @@ v1.0 2016-03-08
 Initial release
 #>
 
-#Get argument for excluded jobs
-param([string]$excluded_jobs = "")
+#Get arguments
+param(
+[string]$excluded_jobs = "",
+[switch]$nsca
+)
+
 if($excluded_jobs -ne "")
 {
 	$excluded_jobs_array = $excluded_jobs.Split(",")
@@ -202,6 +206,13 @@ try{
 		$nagios_output += "`nDisabled: " + $output_jobs_disabled
 	}
 
+	# Si on envoie le message en mode nsca, il faut remplacer le caractere 'fin de ligne' par un \n
+	# qui sera interpreté par le moteur centreon (Status détaillé)
+	if ($nsca){
+		$nagios_output = $nagios_output.replace("`n", "\n")
+	}
+	
+	
 	if($nagios_state -eq 1 -or $nagios_state -eq 2)
 	{
 		Write-Host "Backup Status - Failed: "$output_jobs_failed_counter" / Warning: "$output_jobs_warning_counter" / OK: "$output_jobs_success_counter" / None: "$output_jobs_none_counter" / Skipped: "$output_jobs_skipped_counter" / Disabled: "$output_jobs_disabled_counter $nagios_output
