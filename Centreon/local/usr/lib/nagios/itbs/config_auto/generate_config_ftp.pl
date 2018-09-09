@@ -3,6 +3,17 @@
 use strict;
 use warnings;
 
+# Chargement de la config globale
+require "/usr/lib/nagios/plugins/itbs/etc/config.pm";
+our (
+	$centreon_admin_password,
+	$centreon_admin_user,
+	$ftp_site_addr,
+	$ftp_site_login,
+	$ftp_site_password,
+	$path_to_nsclient_config
+);
+
 # 4 lignes pour charger le module NSClient.pm
 use File::Basename;
 use Cwd qw(abs_path);
@@ -11,10 +22,6 @@ use NSClient;
 
 use Data::Dumper;
 
-# Configuration centreon
-our $centreon_admin_password = 'P@ssword!itbs';
-our $centreon_admin_user = 'admin';
-my $path_to_nsclient_config = "/usr/share/centreon/nsclient";
 my $path_to_configfiles = "$path_to_nsclient_config/config/clients";
 my $path_to_template_files = "$path_to_nsclient_config/config/baseline";
 
@@ -30,28 +37,10 @@ _read_config_dir($hosts, $path_to_configfiles);
 # Exclusion des hosts du groupe 'TESTING'
 exclude_hostgroup($hosts, 'TESTING');
 
-# Pour test
-# my $hosts = {'HP-MLT.ITBS.net' => {'dns' => 'ITBS.net',
-										# 'id' => '150',
-										# 'templates' => [
-														# 'Modele_NSCA',
-														# 'OS-Windows-NSCA'
-													   # ]
-									  # }
-				# };
-
 
 				
 # Boucler sur tous les hosts meme ceux sans config nsclient
 foreach my $host_id (keys(%$hosts)){
-	# Lire la config du host
-	# my $path_nsclient;
-	# if ($hosts->{$host_name}->{'dns'}){
-		# $path_nsclient = "$path_to_configfiles/$hosts->{$host_name}->{'dns'}/$hosts->{$host_name}->{'id'}/nsclient.ini";
-	# }else{
-		# $path_nsclient = "$path_to_configfiles/$hosts->{$host_name}->{'id'}/nsclient.ini";
-	# }
-	
 	if (defined($hosts->{$host_id}->{'nsclient.ini'})){
 		my $config_nsclient = NSClient->new(
 			{ config_file => $hosts->{$host_id}->{'nsclient.ini'} }
@@ -69,7 +58,7 @@ foreach my $host_id (keys(%$hosts)){
 }
 
 # Envoi de la config vers le FTP
-system("lftp ftp.it-bs.fr -e 'mirror --parallel=50 -e -R /usr/share/centreon/nsclient/ nsclient/ ; quit'");
+system("lftp -u $ftp_site_login,$ftp_site_password $ftp_site_addr -e \"mirror --parallel=50 -e -R $path_to_nsclient_config/ nsclient/ ; quit\"");
 
 #
 # _read_config_dir - Renvoie la liste des fichiers d'un repertoire (en mode recursif)
@@ -89,7 +78,6 @@ sub _read_config_dir {
 		# Traitement des fichiers
 		if ( -f "$path/$file") {
 			if ($file eq "nsclient.ini"){
-				# push ( @FilesList, "$path/$file" );
 				my ($host_id) = fileparse($path);
 				if (defined($hosts->{$host_id})){
 					$hosts->{$host_id}->{'nsclient.ini'} = "$path/$file";
@@ -101,7 +89,6 @@ sub _read_config_dir {
 		# Traitement des repertoires
 		elsif ( -d "$path/$file") {
 			# Boucle pour lancer la recherche en mode recursif
-			# push (@FilesList, _read_config_dir("$path/$file") );
 			_read_config_dir($hosts, "$path/$file");
 		}
 
@@ -161,23 +148,23 @@ sub get_hosts {
 	shift @clapi_result;  # la 1ere ligne contient les entetes de colonnes
 	my $nb_result = @clapi_result;
 	
-	print "Lecture de la configuration...\n";
-	print "[$current_percent\%...";
+	# print "Lecture de la configuration...\n";
+	# print "[$current_percent\%...";
 	foreach my $host (@clapi_result){
 		my @temp_list = ();
 		
 		# generation compteur d'affichage
-		$count++;
-		my $percent = $count*100/$nb_result;
-		if ($percent % 10 == 0 && int($percent) != $current_percent){
-			$current_percent = int($percent);
-			print "$current_percent\%";
-			if ($current_percent < 100){
-				print "...";
-			}else{
-				print "] - OK\n";
-			}
-		}
+		# $count++;
+		# my $percent = $count*100/$nb_result;
+		# if ($percent % 10 == 0 && int($percent) != $current_percent){
+			# $current_percent = int($percent);
+			# print "$current_percent\%";
+			# if ($current_percent < 100){
+				# print "...";
+			# }else{
+				# print "] - OK\n";
+			# }
+		# }
 		
 		chomp $host;
 		
