@@ -3,33 +3,26 @@
 use strict;
 use warnings;
 
-# Chargement de la config globale
-require "/usr/lib/nagios/plugins/itbs/etc/config.pm";
-our (
-	$centreon_admin_password,
-	$centreon_admin_user,
-	$ftp_site_addr,
-	$ftp_site_login,
-	$ftp_site_password,
-	$path_to_nsclient_config
-);
-
 # 4 lignes pour charger le module NSClient.pm
 use File::Basename;
 use Cwd qw(abs_path);
 use lib dirname (abs_path(__FILE__));
 use NSClient;
 
+# Chargement de la config globale
+our $global_opts;
+do '/usr/lib/nagios/plugins/itbs/bin/load_config.pl';
+
 use Data::Dumper;
 
-my $path_to_configfiles = "$path_to_nsclient_config/config/clients";
-my $path_to_template_files = "$path_to_nsclient_config/config/baseline";
+my $path_to_configfiles = "$global_opts->{'path_to_nsclient_config'}/config/clients";
+my $path_to_template_files = "$global_opts->{'path_to_nsclient_config'}/config/baseline";
 
 my $now = `date +%s`;
 my $logfile = "/tmp/generate_config_ftp-$now.log";
 
 # Chargement de la liste des hosts centreon
-my $hosts = get_hosts("admin", $centreon_admin_password);
+my $hosts = get_hosts("admin", $global_opts->{'centreon_admin_password'});
 
 # Mise en relation avec le chemin vers le nsclient.ini
 _read_config_dir($hosts, $path_to_configfiles);
@@ -58,7 +51,8 @@ foreach my $host_id (keys(%$hosts)){
 }
 
 # Envoi de la config vers le FTP
-system("lftp -u $ftp_site_login,$ftp_site_password $ftp_site_addr -e \"mirror --parallel=50 -e -R $path_to_nsclient_config/ nsclient/ ; quit\"");
+# system("lftp -u $global_opts->{'ftp_site_login'},$global_opts->{'ftp_site_password'} $global_opts->{'ftp_site_addr'} -e \"mirror --parallel=50 -e -R $global_opts->{'path_to_nsclient_config'}/ nsclient/ ; quit\"");
+system($global_opts->{'sync_ftp_cmd'});
 
 #
 # _read_config_dir - Renvoie la liste des fichiers d'un repertoire (en mode recursif)
@@ -105,7 +99,7 @@ sub exclude_hostgroup {
 	my @clapi_result;
 	
 	if ($hostgroup){
-		@clapi_result = `centreon -u $centreon_admin_user -p $centreon_admin_password -o HG -a GETMEMBER -v $hostgroup `;
+		@clapi_result = `centreon -u $global_opts->{'centreon_admin_user'} -p $global_opts->{'centreon_admin_password'} -o HG -a GETMEMBER -v $hostgroup `;
 		shift @clapi_result;  # la 1ere ligne contient les entetes de colonnes
 	}
 	
