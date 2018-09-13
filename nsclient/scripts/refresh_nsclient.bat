@@ -57,7 +57,7 @@ REM =========
 REM initialise l'heure de début de la tache
 call :CALCUL_DATE 1
 
-schtasks /create /F /RU "NT AUTHORITY\SYSTEM" /TN "NSClient++ Service restart" /SC DAILY /MO 1 /ST %start_time% /TR "cmd /c '%exe-path%\%~fnx0'" >NUL
+schtasks /create /F /RU "NT AUTHORITY\SYSTEM" /TN "NSClient++ Service restart" /SC DAILY /MO 1 /ST %start_time% /TR "cmd /c '%~fnx0'" >NUL
 set err_code=%ERRORLEVEL%
 
 if %err_code% == 0 (
