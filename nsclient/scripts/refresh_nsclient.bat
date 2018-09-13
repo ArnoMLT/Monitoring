@@ -57,9 +57,7 @@ REM =========
 REM initialise l'heure de début de la tache
 call :CALCUL_DATE 1
 
-REM schtasks /create /F /RU "NT AUTHORITY\SYSTEM" /TN "NSClient++ Service restart" /SC HOURLY /MO 12 /TR "cmd /c '%exe-path%\nscp.exe' service --restart" >NUL
-REM schtasks /create /F /RU "NT AUTHORITY\SYSTEM" /TN "NSClient++ Service restart" /SC HOURLY /MO 12 /TR "cmd /c '%exe-path%\%0'" >NUL
-schtasks /create /F /RU "NT AUTHORITY\SYSTEM" /TN "NSClient++ Service restart" /SC DAILY /MO 1 /ST %start_time% /TR "cmd /c '%exe-path%\%0'" >NUL
+schtasks /create /F /RU "NT AUTHORITY\SYSTEM" /TN "NSClient++ Service restart" /SC DAILY /MO 1 /ST %start_time% /TR "cmd /c '%~fnx0'" >NUL
 set err_code=%ERRORLEVEL%
 
 if %err_code% == 0 (
@@ -79,7 +77,6 @@ REM =======
 REM launch
 REM =======
 :LAUNCH
-rem "%exe-path%\%exe-bin%" service --restart
 start cmd /c "net stop nscp"
 timeout 10
 
@@ -90,8 +87,7 @@ for /f %%i in ('!cmd!') do set nb_nscp=%%i
 rem if NOT "%ERRORLEVEL%" == "0" (
 if %nb_nscp% GEQ 1 (
 	taskkill /f /im %exe-bin%
-timeout 5
-rem	"%exe-path%\%exe-bin%" service --restart
+	timeout 5
 )
 
 net start nscp
