@@ -68,8 +68,8 @@ rm -f $path_to_nsclient_config/$relative_temp_config_dir/$host_name-$host_ip_add
 # EOF
 
 
-echo "Sync avec FTP externe" >&2 >> $logfile
-$sync_ftp_cmd | tee -a $logfile
+# echo "Sync avec FTP externe" >&2 >> $logfile
+# $sync_ftp_cmd | tee -a $logfile
 
 ###
  # Change le template pour le host

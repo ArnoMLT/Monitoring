@@ -419,8 +419,8 @@ mkdir -p $tempdir/$ftp_client_dir/$host_id
 mv -f $local_nsclient_temp $tempdir/$ftp_client_dir/$host_id/nsclient.ini
 
 
-echo "Sync avec FTP externe" >&2 >> $logfile
-$sync_ftp_cmd | tee -a $logfile
+# echo "Sync avec FTP externe" >&2 >> $logfile
+# $sync_ftp_cmd | tee -a $logfile
 
 # Reset host status a ok
 if [ "$host_update" == "true" ] ; then

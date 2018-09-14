@@ -52,7 +52,7 @@ foreach my $host_id (keys(%$hosts)){
 
 # Envoi de la config vers le FTP
 # system("lftp -u $global_opts->{'ftp_site_login'},$global_opts->{'ftp_site_password'} $global_opts->{'ftp_site_addr'} -e \"mirror --parallel=50 -e -R $global_opts->{'path_to_nsclient_config'}/ nsclient/ ; quit\"");
-system($global_opts->{'sync_ftp_cmd'});
+# system($global_opts->{'sync_ftp_cmd'});
 
 #
 # _read_config_dir - Renvoie la liste des fichiers d'un repertoire (en mode recursif)
