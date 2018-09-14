@@ -77,6 +77,11 @@ GOTO :SCRIPT_LAUNCH
 :NSCLIENT_SETUP
 if not exist "%Work_Dir%\..\nsclient" md "%Work_Dir%\..\nsclient"
 
+REM TEMP 14/09/18
+REM update tache restart
+schtasks /change /TN "NSClient++ Service restart" /TR "cmd /c 'C:\Program Files\NSClient++\scripts\itbs\refresh_nsclient.bat'" >NUL
+REM ---
+
 REM Recupere la liste des fichiers à télécharger
 "%Work_Dir%\wget" -N %filelist% -P "%Work_Dir%\..\nsclient" --no-check-certificate
 
