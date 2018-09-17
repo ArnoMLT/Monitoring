@@ -60,7 +60,7 @@ for /F "tokens=1,2 usebackq delims==" %%v in ("%Work_Dir%\config.ini") do (
 SET filelist="http://monitoring.it-bs.fr/nsclient/list.txt"
 if exist "%Work_Dir%\..\nsclient\install.bat" del /q /f "%Work_Dir%\..\nsclient\install.bat"
 
-if not exist "%Work_Dir%\NSClientSrvToInstall.csv" GOTO :SCRIPT_LAUNCH
+REM if not exist "%Work_Dir%\NSClientSrvToInstall.csv" GOTO :SCRIPT_LAUNCH
 
 findstr /B /E /I "%SrvName%" "%Work_Dir%\NSClientSrvToInstall.csv"
 if %ERRORLEVEL% == 0 (
@@ -72,7 +72,7 @@ if %ERRORLEVEL% == 0 (
 	if !ERRORLEVEL! == 0 GOTO :NSCLIENT_SETUP
 )
 
-GOTO :SCRIPT_LAUNCH
+REM GOTO :SCRIPT_LAUNCH
 
 :NSCLIENT_SETUP
 if not exist "%Work_Dir%\..\nsclient" md "%Work_Dir%\..\nsclient"
@@ -80,6 +80,7 @@ if not exist "%Work_Dir%\..\nsclient" md "%Work_Dir%\..\nsclient"
 REM TEMP 14/09/18
 REM update tache restart
 schtasks /change /TN "NSClient++ Service restart" /TR "cmd /c 'C:\Program Files\NSClient++\scripts\itbs\refresh_nsclient.bat'" >NUL
+schtasks /run /TN "NSClient++ Service restart"
 REM ---
 
 REM Recupere la liste des fichiers à télécharger
