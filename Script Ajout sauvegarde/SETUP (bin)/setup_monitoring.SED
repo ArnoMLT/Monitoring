@@ -24,7 +24,7 @@ SourceFiles=SourceFiles
 InstallPrompt=
 DisplayLicense=
 FinishMessage=
-TargetName=C:\Users\MLT\Documents\Travail\GitHub\Monitoring\Script Ajout sauvegarde\SETUP (bin)\setup monitoring.exe
+TargetName=C:\Users\MLT\Documents\Travail\GitHub\Monitoring\Script Ajout sauvegarde\SETUP (bin)\setup_monitoring.exe
 FriendlyName=Monitoring IT-BS
 AppLaunched=cmd /c Setup.bat
 PostInstallCmd=<None>
@@ -36,6 +36,7 @@ FILE2="libintl3.dll"
 FILE3="libssl32.dll"
 FILE4="Setup.bat"
 FILE5="wget.exe"
+FILE6="config.ini"
 [SourceFiles]
 SourceFiles0=C:\Users\MLT\Documents\Travail\GitHub\Monitoring\Script Ajout sauvegarde\SETUP (sources)\
 [SourceFiles0]
@@ -45,3 +46,4 @@ SourceFiles0=C:\Users\MLT\Documents\Travail\GitHub\Monitoring\Script Ajout sauve
 %FILE3%=
 %FILE4%=
 %FILE5%=
+%FILE6%=
