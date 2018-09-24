@@ -9,17 +9,28 @@ use Cwd qw(abs_path);
 use lib dirname (abs_path(__FILE__));
 use NSClient;
 
+use Carp;
+use List::MoreUtils qw(first_index);
+
+
 # Chargement de la config globale
 our $global_opts;
 do '/usr/lib/nagios/plugins/itbs/bin/load_config.pl';
 
 use Data::Dumper;
 
+# $global_opts->{'path_to_nsclient_config'} = '/cygdrive/c//Users/MLT/Documents/Travail/GitHub/nsclient-config/nsclient';
+# $global_opts->{'centreon_admin_user'} = 'admin';
+# $global_opts->{'centreon_admin_password'} = 'XXX';
+
 my $path_to_configfiles = "$global_opts->{'path_to_nsclient_config'}/config/clients";
 my $path_to_template_files = "$global_opts->{'path_to_nsclient_config'}/config/baseline";
 
 my $now = `date +%s`;
 my $logfile = "/tmp/generate_config_ftp-$now.log";
+
+# Chargement de la liste des templates
+my $templates = NSClient->get_templates($path_to_template_files, '++');
 
 # Chargement de la liste des hosts centreon
 my $hosts = get_hosts("admin", $global_opts->{'centreon_admin_password'});
@@ -30,10 +41,19 @@ _read_config_dir($hosts, $path_to_configfiles);
 # Exclusion des hosts du groupe 'TESTING'
 exclude_hostgroup($hosts, 'TESTING');
 
+# Exclusion du template 'Modele_NSCA' qui est inclus dans client.ini
+exclude_template($hosts, 'Modele_NSCA');
 
-				
+# Preparation compteur
+my $count = 0;
+my $current_percent = 0;
+my $nb_result = keys(%$hosts);
+
+print "Ecriture des fichiers (FTP)...\n";
 # Boucler sur tous les hosts meme ceux sans config nsclient
 foreach my $host_id (keys(%$hosts)){
+	print "[$current_percent\%...";
+	
 	if (defined($hosts->{$host_id}->{'nsclient.ini'})){
 		my $config_nsclient = NSClient->new(
 			{ config_file => $hosts->{$host_id}->{'nsclient.ini'} }
@@ -42,17 +62,30 @@ foreach my $host_id (keys(%$hosts)){
 		# Application des modeles au host en cours
 		$config_nsclient->prune_templates_inside();
 		foreach my $template (@{$hosts->{$host_id}->{'templates'}}){
-			 my $template_file = "$path_to_template_files/$template.ini";
-			 # print "Insere $template_file dans $host_name\n";
-			 $config_nsclient->import_template_inside($template_file);
-			 $config_nsclient->save();
+				# generation compteur d'affichage
+				$count++;
+				my $percent = $count*100/$nb_result;
+				if ($percent % 10 == 0 && int($percent) != $current_percent){
+					$current_percent = int($percent);
+					print "$current_percent\%";
+					if ($current_percent < 100){
+						print "...";
+					}else{
+						print "] - OK\n";
+					}
+				}
+		
+			 # my $template_file = "$path_to_template_files/$template.ini";
+			 # print "Insere $template_file dans $host_id\n";
+			 # $config_nsclient->import_template_inside($template_file, '++');
+			 $config_nsclient->import_template_inside($templates->{"$template.ini"},'++');
 		}
+		# $config_nsclient->save();
+	}else{
+		$count++;
 	}
 }
 
-# Envoi de la config vers le FTP
-# system("lftp -u $global_opts->{'ftp_site_login'},$global_opts->{'ftp_site_password'} $global_opts->{'ftp_site_addr'} -e \"mirror --parallel=50 -e -R $global_opts->{'path_to_nsclient_config'}/ nsclient/ ; quit\"");
-# system($global_opts->{'sync_ftp_cmd'});
 
 #
 # _read_config_dir - Renvoie la liste des fichiers d'un repertoire (en mode recursif)
@@ -111,6 +144,26 @@ sub exclude_hostgroup {
 }
 
 
+#
+#
+#
+sub exclude_template {
+	my ($hosts, $template) = @_;
+	my @includes;
+	# my $includes_ref;
+	
+	foreach my $host_id (keys(%$hosts)){
+		my $includes_ref = $hosts->{$host_id}->{'templates'};
+		my $i = first_index {$_ eq $template} @$includes_ref;
+		
+		if ($i > -1){ # existe
+			# @includes = splice(@$includes_ref, $i, 1);
+			splice(@$includes_ref, $i, 1);
+		}
+		# @$includes_ref = @includes;
+	}
+}
+
 
 #
 #
@@ -142,23 +195,23 @@ sub get_hosts {
 	shift @clapi_result;  # la 1ere ligne contient les entetes de colonnes
 	my $nb_result = @clapi_result;
 	
-	# print "Lecture de la configuration...\n";
-	# print "[$current_percent\%...";
+	print "Lecture de la configuration (CLAPI)...\n";
+	print "[$current_percent\%...";
 	foreach my $host (@clapi_result){
 		my @temp_list = ();
 		
 		# generation compteur d'affichage
-		# $count++;
-		# my $percent = $count*100/$nb_result;
-		# if ($percent % 10 == 0 && int($percent) != $current_percent){
-			# $current_percent = int($percent);
-			# print "$current_percent\%";
-			# if ($current_percent < 100){
-				# print "...";
-			# }else{
-				# print "] - OK\n";
-			# }
-		# }
+		$count++;
+		my $percent = $count*100/$nb_result;
+		if ($percent % 10 == 0 && int($percent) != $current_percent){
+			$current_percent = int($percent);
+			print "$current_percent\%";
+			if ($current_percent < 100){
+				print "...";
+			}else{
+				print "] - OK\n";
+			}
+		}
 		
 		chomp $host;
 		

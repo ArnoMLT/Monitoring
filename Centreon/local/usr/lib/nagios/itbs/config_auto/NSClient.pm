@@ -16,7 +16,7 @@ use List::MoreUtils qw(first_index);
 
 #
 # TODO :
-#  - Gerer l'ordre des attachements
+# 
 
 
 
@@ -30,7 +30,7 @@ sub new {
 	$self->{config_href} = {};
 	$self->{config_file} = $args->{config_file};
 	
-	$self->load();
+	$self->load($args->{token});
 	
 	return $self;
 }
@@ -89,8 +89,11 @@ sub read_from_file {
 #
 sub read_from_file_inside {
 	my ($self, $config_file, $token) = @_;
-
-	$self->{config_href} = $self->read_from_file($config_file, $token);
+	my $token_key = $token;
+	
+	$token_key = 'default' unless (defined $token_key);
+	
+	$self->{config_href}->{$token_key} = $self->read_from_file($config_file, $token);
 	
 	return $self->get_config();
 }
@@ -100,9 +103,9 @@ sub read_from_file_inside {
 # charge le fichier de la classe
 #
 sub load {
-	my $self = shift;
+	my ($self, $token) = @_;
 	
-	return $self->read_from_file_inside($self->{config_file});
+	return $self->read_from_file_inside($self->{config_file}, $token);
 }
 
 
@@ -140,11 +143,18 @@ sub save {
 # dans le fichier de config de la classe
 #
 sub import_template_inside {
-	my ($self, $template_file) = @_;
-	my $template_hash;
+	my ($self, $template, $token) = @_;
+	# my $template_hash;
 	
-	# Import des nouveaux templates
-	$self->merge_hash_inside($self->read_from_file($template_file, "++"));
+	# 
+	if (ref($template) eq "NSClient"){
+		# Import a partir d'un hash de templates
+		$self->merge_hash_inside($template->get_config($token));
+	
+	}else{
+		# Import a partir d'un fichier
+		$self->merge_hash_inside($self->read_from_file($template, $token));
+	}
 }
 
 
@@ -165,6 +175,34 @@ sub prune_templates_inside {
 	
 	@$includes_ref = @includes;
 }
+
+
+#
+# retourne un href avec tous les templates disponibles dans $path
+#
+sub get_templates {
+	my ($self, $path, $token) = @_;
+	my $templates = {};
+	
+	# Lecture de la liste des fichiers
+	opendir (my $FhRep, $path) or die "Impossible d'ouvrir le repertoire $path\n";
+	my @contenu = grep { !/^\.\.?$/ } readdir($FhRep);
+	closedir ($FhRep);
+	
+	foreach my $file (@contenu) {
+	# Traitement des fichiers
+		if ( -f "$path/$file") {
+			$templates->{$file} = NSClient->new(
+				{	config_file => 	"$path/$file",
+					token =>		$token
+				}
+			);
+		}
+	}
+		
+	return $templates;
+}
+
 
 #
 # traite une $line en lecture et l'insere dans $href
@@ -256,7 +294,7 @@ sub merge_file_inside {
 	
 	# Charge le fichier $file_out
 	my $nsclient_out = NSClient->new({config_file => $file_out});
-	$nsclient_out->load() or croak "Impossible de charger le fichier '$file_out'";
+	# $nsclient_out->load() or croak "Impossible de charger le fichier '$file_out'";
 	
 	$self->merge_hash_inside($nsclient_out->get_config());
 	
@@ -268,9 +306,10 @@ sub merge_file_inside {
 # retourne le config_href de la classe
 #
 sub get_config {
-	my $self = shift;
+	my ($self, $token) = @_;
+	$token = 'default' unless (defined $token);
 	
-	return $self->{config_href};
+	return $self->{config_href}->{$token};
 }
 
 
@@ -317,9 +356,14 @@ sub merge_hash_inside {
 sub _merge_list {
 	my ($self, $list1, $list_new) = @_;
 	
-	while (defined (@$list_new) && @$list_new){
-		my $key = shift(@$list_new);
-		my $value = shift(@$list_new);
+	# creation d'une liste a part pour ne pas travailler
+	# directement sur un modele
+	my @list_new_copy = @$list_new;
+	
+	# while (defined (@list_new_copy) && @list_new_copy){ # defined is deprecated
+	while (@list_new_copy){
+		my $key = shift(@list_new_copy);
+		my $value = shift(@list_new_copy);
 		
 		# Si la clé existe déjà, on supprime la clé et la valeur associée pour mettre la nouvelle entrée a la fin
 		my $i = first_index {$_ eq $key} @$list1;
