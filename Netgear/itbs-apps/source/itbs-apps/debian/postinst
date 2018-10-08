@@ -17,16 +17,20 @@ set -e
 # for details, see http://www.debian.org/doc/debian-policy/ or
 # the debian-policy package
 
+logfile="/tmp/itbs-apps_install.log"
+
+echo "itbs-apps version : __NEW_VERSION__" >> $logfile
 
 case "$1" in
   configure)
+	echo "[Configure]" | tee -a $logfile
     APPDIR=/apps/itbs-apps
-    chown -R admin:admin $APPDIR
+    chown -R admin:admin $APPDIR 2>&1 | tee $logfile
 
     # partage existe ?
     partage=`rn_nml -g shares | grep -e itbs-config | awk -F"\" " '{print $1}'|  awk -F"\=\"" '{print $2}'`
          if [ ! $partage ]; then
-               rn_nml -a share:/*/itbs-config:cifs
+               rn_nml -a share:/*/itbs-config:cifs 2>&1 | tee -a $logfile
              # rn_nml -a share:/*/itbs-config
           fi
 
@@ -35,10 +39,11 @@ case "$1" in
 
 
     # ---- Monitoring ----
+	echo "[Monitoring]" | tee -a $logfile
     SUBDIR=$APPDIR/monitoring
 
     # Preserve config directory unless there is new config file
-    [ -d $SUBDIR/config ] || mkdir $SUBDIR/config
+    [ -d $SUBDIR/config ] || mkdir $SUBDIR/config 2>&1 | tee -a $logfile
     for conf in $(cd $SUBDIR/default-config; find . -type f -o -type l); do
       [ -e $SUBDIR/config/$conf -o -L $SUBDIR/config/$conf ] || (cd $SUBDIR/default-config; tar cf - $conf) | (cd $SUBDIR/config; tar xpf -) 2>/dev/null
     done
@@ -48,7 +53,7 @@ case "$1" in
 #        ln -s $conf /$partage/$(basename $conf)
 #    done
 
-    [ -d $partage/monitoring-config -o -L $partage/monitoring-config ] || ln -fs $SUBDIR/config /$partage/monitoring-config
+    [ -d $partage/monitoring-config -o -L $partage/monitoring-config ] || ln -fs $SUBDIR/config /$partage/monitoring-config 2>&1 | tee -a $logfile
 
 #    Partage=`rn_nml -g shares | grep itbs-config | awk -F"\"" '{print $2}'`
 
@@ -63,45 +68,50 @@ case "$1" in
 #    chmod 777 /$Partage -R
     
     # configuration snmptrapd
-    [ -f /etc/default/snmptrapd ] && mv /etc/default/snmptrapd /etc/default/snmptrapd.orig
-    ln -fs $SUBDIR/config/snmptrapd /etc/default/snmptrapd
+	echo"[snmptrapd]" | tee -a $logfile
+    [ -f /etc/default/snmptrapd ] && mv /etc/default/snmptrapd /etc/default/snmptrapd.orig 2>&1 | tee -a $logfile
+    ln -fs $SUBDIR/config/snmptrapd /etc/default/snmptrapd 2>&1 | tee -a $logfile
 
-	[ -f /etc/snmp/snmptrapd.conf ] && mv /etc/snmp/snmptrapd.conf /etc/snmp/snmptrapd.conf.orig
-    ln -fs $SUBDIR/config/snmptrapd.conf /etc/snmp/snmptrapd.conf
+	[ -f /etc/snmp/snmptrapd.conf ] && mv /etc/snmp/snmptrapd.conf /etc/snmp/snmptrapd.conf.orig 2>&1 | tee -a $logfile
+    ln -fs $SUBDIR/config/snmptrapd.conf /etc/snmp/snmptrapd.conf 2>&1 | tee -a $logfile
 
 	# ---- Centreon Plugins ----
+	echo "[centreon-plugins]" | tee -a $logfile
 	# Install centreon-plugins
-	git config --global user.email "support@it-bs.fr"
-	git config --global user.name "IT-BS"
+	git config --global user.email "support@it-bs.fr" 2>&1 | tee -a $logfile
+	git config --global user.name "IT-BS" 2>&1 | tee -a $logfile
 	CENTREONPLUGINSDIR=$APPDIR/centreon-plugins
 	
 	if [ ! -d $CENTREONPLUGINSDIR ] ; then
-		git clone --depth=1 https://github.com/centreon/centreon-plugins.git $CENTREONPLUGINSDIR
+		git clone --depth=1 https://github.com/centreon/centreon-plugins.git $CENTREONPLUGINSDIR 2>&1 | tee -a $logfile
 	else
 		# mise a jour
 		(	cd $CENTREONPLUGINSDIR ; \
 			git fetch origin master ; \
-			git reset --hard origin/master \
-		)
+			git reset --hard origin/master  \
+		) | tee -a $logfile
 	fi
-	chmod a+x $CENTREONPLUGINSDIR/centreon_plugins.pl
+	chmod a+x $CENTREONPLUGINSDIR/centreon_plugins.pl 2>&1 | tee -a $logfile
 	
 	# Ajout des plugins perso
+	echo "[Plugins perso]"  | tee -a $logfile
 	#wget --progress=bar -rN -l 10 -R 'index.html*' -nH --cut-dirs=3 -np -P $CENTREONPLUGINSDIR http://monitoring.it-bs.fr/nsclient/scripts/centreon-plugins >/dev/null 2>&1
-	cp -R $SUBDIR/centreon-plugins/* $CENTREONPLUGINSDIR/
+	cp -R $SUBDIR/centreon-plugins/* $CENTREONPLUGINSDIR/ 2>&1 | tee -a $logfile
 	
 	# Schedule
+	echo "[Schedule]" | tee -a $logfile
 	HOSTNAME=$(uname -n)
 	#cronmin=$(($RANDOM%60))
 	cronmin=$(shuf -i 0-59 -n 1)
 	croncmd="/apps/itbs-apps/monitoring/scripts/nsca_wrapper -H \"$HOSTNAME\" -S \"Hardware-Nas-Netgear-Readynas-Snmp-NSCA\" -C \"/usr/bin/perl $CENTREONPLUGINSDIR/centreon_plugins.pl --plugin=storage::netgear::readynas::snmp::plugin --mode=hardware --hostname=127.0.0.1\""
 	cronjob="$cronmin * * * * $croncmd"
 	[ -f /var/spool/cron/crontabs/$USER ] && { crontab -l | grep -v -F "$croncmd" ; echo "$cronjob" ; } | crontab - || { echo "$cronjob" ; } | crontab -
+	crontab -l | tee -a $logfile
 	# ---- ----
 	
-		
-	systemctl restart cron
-    systemctl restart snmptrapd
+	echo "[Restart services]" | tee -a $logfile
+	systemctl restart cron 2>&1 | tee -a $logfile
+    systemctl restart snmptrapd 2>&1 | tee -a $logfile
     
     # Restart apache so that all site-enables will be updated
     
@@ -113,6 +123,7 @@ case "$1" in
       event_push app readynasd '<add-s resource-type="LocalApp" resource-id="LocalApp"><LocalApp appname="itbs-apps" success="0"/></add-s>' 0 0
     fi
 
+	echo "End" | tee -a $logfile
 
     ;;
 
