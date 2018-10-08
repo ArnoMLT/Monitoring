@@ -1,0 +1,13 @@
+itbs-apps (1.1.0-p1) UNRELEASED; urgency=medium
+
+  * Add support for centreon-plugins snmp plugins
+  * Add personnal plugin to manage readynas
+  * Add cron job to send Nas Health hourly
+
+ -- IT-BS <support@it-bs.fr>  Sat, 06 Oct 2018 14:47:07 +0200
+
+itbs-apps (1.0.0-p1) unstable; urgency=low
+
+  * Initial release. (Closes: #XXXXXX)
+
+ -- IT-BS <support@it-bs.fr>  Mon, 16 Apr 2018 09:57:14 +0200

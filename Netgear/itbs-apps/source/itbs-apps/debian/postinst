@@ -36,7 +36,7 @@ case "$1" in
 
     # ---- Monitoring ----
     SUBDIR=$APPDIR/monitoring
-echo "-$SUBDIR-"
+
     # Preserve config directory unless there is new config file
     [ -d $SUBDIR/config ] || mkdir $SUBDIR/config
     for conf in $(cd $SUBDIR/default-config; find . -type f -o -type l); do
@@ -48,7 +48,7 @@ echo "-$SUBDIR-"
 #        ln -s $conf /$partage/$(basename $conf)
 #    done
 
-    [ -d $partage/monitoring-config -o -L $partage/monitoring-config ] || ln -s $SUBDIR/config /$partage/monitoring-config
+    [ -d $partage/monitoring-config -o -L $partage/monitoring-config ] || ln -fs $SUBDIR/config /$partage/monitoring-config
 
 #    Partage=`rn_nml -g shares | grep itbs-config | awk -F"\"" '{print $2}'`
 
@@ -68,8 +68,39 @@ echo "-$SUBDIR-"
 
 	[ -f /etc/snmp/snmptrapd.conf ] && mv /etc/snmp/snmptrapd.conf /etc/snmp/snmptrapd.conf.orig
     ln -fs $SUBDIR/config/snmptrapd.conf /etc/snmp/snmptrapd.conf
+
+	# ---- Centreon Plugins ----
+	# Install centreon-plugins
+	git config --global user.email "support@it-bs.fr"
+	git config --global user.name "IT-BS"
+	CENTREONPLUGINSDIR=$APPDIR/centreon-plugins
 	
+	if [ ! -d $CENTREONPLUGINSDIR ] ; then
+		git clone --depth=1 https://github.com/centreon/centreon-plugins.git $CENTREONPLUGINSDIR
+	else
+		# mise a jour
+		(	cd $CENTREONPLUGINSDIR ; \
+			git fetch origin master ; \
+			git reset --hard origin/master \
+		)
+	fi
+	chmod a+x $CENTREONPLUGINSDIR/centreon_plugins.pl
 	
+	# Ajout des plugins perso
+	#wget --progress=bar -rN -l 10 -R 'index.html*' -nH --cut-dirs=3 -np -P $CENTREONPLUGINSDIR http://monitoring.it-bs.fr/nsclient/scripts/centreon-plugins >/dev/null 2>&1
+	cp -R $SUBDIR/centreon-plugins/* $CENTREONPLUGINSDIR/
+	
+	# Schedule
+	HOSTNAME=$(uname -n)
+	#cronmin=$(($RANDOM%60))
+	cronmin=$(shuf -i 0-59 -n 1)
+	croncmd="/apps/itbs-apps/monitoring/scripts/nsca_wrapper -H \"$HOSTNAME\" -S \"Hardware-Nas-Netgear-Readynas-Snmp-NSCA\" -C \"/usr/bin/perl $CENTREONPLUGINSDIR/centreon_plugins.pl --plugin=storage::netgear::readynas::snmp::plugin --mode=hardware --hostname=127.0.0.1\""
+	cronjob="$cronmin * * * * $croncmd"
+	[ -f /var/spool/cron/crontabs/$USER ] && { crontab -l | grep -v -F "$croncmd" ; echo "$cronjob" ; } | crontab - || { echo "$cronjob" ; } | crontab -
+	# ---- ----
+	
+		
+	systemctl restart cron
     systemctl restart snmptrapd
     
     # Restart apache so that all site-enables will be updated
