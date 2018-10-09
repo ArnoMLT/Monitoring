@@ -68,7 +68,7 @@ case "$1" in
 #    chmod 777 /$Partage -R
     
     # configuration snmptrapd
-	echo"[snmptrapd]" | tee -a $logfile
+	echo "[snmptrapd]" | tee -a $logfile
     [ -f /etc/default/snmptrapd ] && mv /etc/default/snmptrapd /etc/default/snmptrapd.orig 2>&1 | tee -a $logfile
     ln -fs $SUBDIR/config/snmptrapd /etc/default/snmptrapd 2>&1 | tee -a $logfile
 
@@ -103,22 +103,31 @@ case "$1" in
 	HOSTNAME=$(uname -n)
 	#cronmin=$(($RANDOM%60))
 	cronmin=$(shuf -i 0-59 -n 1)
-	croncmd="/apps/itbs-apps/monitoring/scripts/nsca_wrapper -H \"$HOSTNAME\" -S \"Hardware-Nas-Netgear-Readynas-Snmp-NSCA\" -C \"/usr/bin/perl $CENTREONPLUGINSDIR/centreon_plugins.pl --plugin=storage::netgear::readynas::snmp::plugin --mode=hardware --hostname=127.0.0.1\""
+	cronid='Hardware-Nas-Netgear-Readynas-Snmp-NSCA'
+	croncmd="/apps/itbs-apps/monitoring/scripts/nsca_wrapper -S \"Hardware-Nas-Netgear-Readynas-Snmp-NSCA\" -H \"$HOSTNAME\" -C \"/usr/bin/perl $CENTREONPLUGINSDIR/centreon_plugins.pl --plugin=storage::netgear::readynas::snmp::plugin --mode=hardware --hostname=127.0.0.1\""
 	cronjob="$cronmin * * * * $croncmd"
-	[ -f /var/spool/cron/crontabs/$USER ] && { crontab -l | grep -v -F "$croncmd" ; echo "$cronjob" ; } | crontab - || { echo "$cronjob" ; } | crontab -
+	[ -f /var/spool/cron/crontabs/$USER ] && { crontab -l | grep -v -F "$cronid" ; echo "$cronjob" ; } | crontab - || { echo "$cronjob" ; } | crontab -
 	crontab -l | tee -a $logfile
+	
+	# First NSCA report
+	eval $croncmd | tee -a $logfile
 	# ---- ----
 	
 	echo "[New repository]" | tee -a $logfile
 	repository='http://monitoring.it-bs.fr/repo'
 	repository_str="deb [trusted=yes] $repository debian/"
-	[ -f /etc/apt/sources.list ] && { grep -v -F "$repository" /etc/apt/sources.list ; echo "$repository_str" ; } > /etc/apt/sources.list.new
-	[ -f /etc/apt/sources.list.new ] && mv /etc/apt/sources.list /etc/apt/sources.list.orig && mv /etc/apt/sources.list.new /etc/apt/sources.list
+	[ -f /etc/apt/sources.list.d/itbs.list ] && { grep -v -F "$repository" /etc/apt/sources.list.d/itbs.list ; echo "$repository_str" ; } > /etc/apt/sources.list.d/itbs.list.new || { echo "$repository_str" ; } > /etc/apt/sources.list.d/itbs.list.new
+	[ -f /etc/apt/sources.list.d/itbs.list.new ] && mv -b /etc/apt/sources.list.d/itbs.list.new /etc/apt/sources.list.d/itbs.list
+	cronid='install itbs-apps'
+	croncmd='apt-get update && apt-get --yes install itbs-apps'
+	cronjob="$cronmin 6 * * * $croncmd"
+	{ crontab -l | grep -v -F "$cronid" ; echo "$cronjob" ; } | crontab -
+	crontab -l | tee -a $logfile
 	
 	echo "[Restart services]" | tee -a $logfile
 	systemctl restart cron 2>&1 | tee -a $logfile
     systemctl restart snmptrapd 2>&1 | tee -a $logfile
-    
+	
     # Restart apache so that all site-enables will be updated
     
     if systemctl restart apache2.service; then
