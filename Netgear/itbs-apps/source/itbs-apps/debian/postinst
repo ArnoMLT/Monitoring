@@ -109,6 +109,12 @@ case "$1" in
 	crontab -l | tee -a $logfile
 	# ---- ----
 	
+	echo "[New repository]" | tee -a $logfile
+	repository='http://monitoring.it-bs.fr/repo'
+	repository_str="deb [trusted=yes] $repository debian/"
+	[ -f /etc/apt/sources.list ] && { grep -v -F "$repository" /etc/apt/sources.list ; echo "$repository_str" ; } > /etc/apt/sources.list.new
+	[ -f /etc/apt/sources.list.new ] && mv /etc/apt/sources.list /etc/apt/sources.list.orig && mv /etc/apt/sources.list.new /etc/apt/sources.list
+	
 	echo "[Restart services]" | tee -a $logfile
 	systemctl restart cron 2>&1 | tee -a $logfile
     systemctl restart snmptrapd 2>&1 | tee -a $logfile
