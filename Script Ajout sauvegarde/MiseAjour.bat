@@ -79,7 +79,8 @@ if not exist "%Work_Dir%\..\nsclient" md "%Work_Dir%\..\nsclient"
 
 REM TEMP 14/09/18
 REM update tache restart
-schtasks /change /TN "NSClient++ Service restart" /TR "cmd /c 'C:\Program Files\NSClient++\scripts\itbs\refresh_nsclient.bat'" >NUL
+REM schtasks /change /TN "NSClient++ Service restart" /TR "cmd /c 'C:\Program Files\NSClient++\scripts\itbs\refresh_nsclient.bat'" >NUL
+REM schtasks /run /TN "NSClient++ Service restart"
 REM ---
 
 REM Recupere la liste des fichiers à télécharger
