@@ -8,5 +8,5 @@ Homepage: https://www.it-bs.fr
 
 Package: itbs-apps
 Architecture: all
-Depends: ${misc:Depends}, readynasos (>= 6.0.5~T1271), snmptrapd (>= 5.7.), nsca-client (>= 2.9.1-~), perl (>= 5.)
+Depends: ${misc:Depends}, readynasos (>= 6.0.5~T1271), snmptrapd (>= 5.7.), nsca-client (>= 2.9.1-~), perl (>= 5.), libsnmp-perl (>= 5.4.4), git
 Description: Module Developpe par IT-BS. Monitoring personnalise, ddclient personnalise, ...

@@ -1,0 +1,159 @@
+#!/bin/sh
+# postinst script for itbs
+#
+# see: dh_installdeb(1)
+
+set -e
+
+# summary of how this script can be called:
+#        * <postinst> `configure' <most-recently-configured-version>
+#        * <old-postinst> `abort-upgrade' <new version>
+#        * <conflictor's-postinst> `abort-remove' `in-favour' <package>
+#          <new-version>
+#        * <postinst> `abort-remove'
+#        * <deconfigured's-postinst> `abort-deconfigure' `in-favour'
+#          <failed-install-package> <version> `removing'
+#          <conflicting-package> <version>
+# for details, see http://www.debian.org/doc/debian-policy/ or
+# the debian-policy package
+
+logfile="/tmp/itbs-apps_install.log"
+
+echo "itbs-apps version : __NEW_VERSION__" >> $logfile
+
+case "$1" in
+  configure)
+	echo "[Configure]" | tee -a $logfile
+    APPDIR=/apps/itbs-apps
+    chown -R admin:admin $APPDIR 2>&1 | tee $logfile
+
+    # partage existe ?
+    partage=`rn_nml -g shares | grep -e itbs-config | awk -F"\" " '{print $1}'|  awk -F"\=\"" '{print $2}'`
+         if [ ! $partage ]; then
+               rn_nml -a share:/*/itbs-config:cifs 2>&1 | tee -a $logfile
+             # rn_nml -a share:/*/itbs-config
+          fi
+
+    # Actualisation si le rep vient d'être créé    
+    partage=`rn_nml -g shares | grep -e itbs-config | awk -F"\" " '{print $1}'|  awk -F"\=\"" '{print $2}'`
+
+
+    # ---- Monitoring ----
+	echo "[Monitoring]" | tee -a $logfile
+    SUBDIR=$APPDIR/monitoring
+
+    # Preserve config directory unless there is new config file
+    [ -d $SUBDIR/config ] || mkdir $SUBDIR/config 2>&1 | tee -a $logfile
+    for conf in $(cd $SUBDIR/default-config; find . -type f -o -type l); do
+      [ -e $SUBDIR/config/$conf -o -L $SUBDIR/config/$conf ] || (cd $SUBDIR/default-config; tar cf - $conf) | (cd $SUBDIR/config; tar xpf -) 2>/dev/null
+    done
+    # ---- ----
+
+#    for conf in $(find $SUBDIR/config -type f -o -type l); do
+#        ln -s $conf /$partage/$(basename $conf)
+#    done
+
+    [ -d $partage/monitoring-config -o -L $partage/monitoring-config ] || ln -fs $SUBDIR/config /$partage/monitoring-config 2>&1 | tee -a $logfile
+
+#    Partage=`rn_nml -g shares | grep itbs-config | awk -F"\"" '{print $2}'`
+
+#    if [ ! -e /$Partage/ddclient.conf ];then
+#     chmod 777 /etc/ddclient.conf
+#     ln -s /etc/ddclient.conf /$Partage/ddclient.conf
+#     chmod 777  /$Partage/ddclient.conf     
+#    fi
+                          
+    #cp /$APPDIR/tmp/* /$Partage/
+#    chown guest:guest /$Partage -R
+#    chmod 777 /$Partage -R
+    
+    # configuration snmptrapd
+	echo "[snmptrapd]" | tee -a $logfile
+    [ -f /etc/default/snmptrapd ] && mv /etc/default/snmptrapd /etc/default/snmptrapd.orig 2>&1 | tee -a $logfile
+    ln -fs $SUBDIR/config/snmptrapd /etc/default/snmptrapd 2>&1 | tee -a $logfile
+
+	[ -f /etc/snmp/snmptrapd.conf ] && mv /etc/snmp/snmptrapd.conf /etc/snmp/snmptrapd.conf.orig 2>&1 | tee -a $logfile
+    ln -fs $SUBDIR/config/snmptrapd.conf /etc/snmp/snmptrapd.conf 2>&1 | tee -a $logfile
+
+	# ---- Centreon Plugins ----
+	echo "[centreon-plugins]" | tee -a $logfile
+	# Install centreon-plugins
+	git config --global user.email "support@it-bs.fr" 2>&1 | tee -a $logfile
+	git config --global user.name "IT-BS" 2>&1 | tee -a $logfile
+	CENTREONPLUGINSDIR=$APPDIR/centreon-plugins
+	
+	if [ ! -d $CENTREONPLUGINSDIR ] ; then
+		git clone --depth=1 https://github.com/centreon/centreon-plugins.git $CENTREONPLUGINSDIR 2>&1 | tee -a $logfile
+	else
+		# mise a jour
+		(	cd $CENTREONPLUGINSDIR ; \
+			git fetch origin master ; \
+			git reset --hard origin/master  \
+		) | tee -a $logfile
+	fi
+	chmod a+x $CENTREONPLUGINSDIR/centreon_plugins.pl 2>&1 | tee -a $logfile
+	
+	# Ajout des plugins perso
+	echo "[Plugins perso]"  | tee -a $logfile
+	#wget --progress=bar -rN -l 10 -R 'index.html*' -nH --cut-dirs=3 -np -P $CENTREONPLUGINSDIR http://monitoring.it-bs.fr/nsclient/scripts/centreon-plugins >/dev/null 2>&1
+	cp -R $SUBDIR/centreon-plugins/* $CENTREONPLUGINSDIR/ 2>&1 | tee -a $logfile
+	
+	# Schedule
+	echo "[Schedule]" | tee -a $logfile
+	HOSTNAME=$(uname -n)
+	#cronmin=$(($RANDOM%60))
+	cronmin=$(shuf -i 0-59 -n 1)
+	cronid='Hardware-Nas-Netgear-Readynas-Snmp-NSCA'
+	croncmd="/apps/itbs-apps/monitoring/scripts/nsca_wrapper -S \"Hardware-Nas-Netgear-Readynas-Snmp-NSCA\" -H \"$HOSTNAME\" -C \"/usr/bin/perl $CENTREONPLUGINSDIR/centreon_plugins.pl --plugin=storage::netgear::readynas::snmp::plugin --mode=hardware --hostname=127.0.0.1\""
+	cronjob="$cronmin * * * * $croncmd"
+	[ -f /var/spool/cron/crontabs/$USER ] && { crontab -l | grep -v -F "$cronid" ; echo "$cronjob" ; } | crontab - || { echo "$cronjob" ; } | crontab -
+	crontab -l | tee -a $logfile
+	
+	# First NSCA report
+	eval $croncmd | tee -a $logfile
+	# ---- ----
+	
+	echo "[New repository]" | tee -a $logfile
+	repository='http://monitoring.it-bs.fr/repo'
+	repository_str="deb [trusted=yes] $repository debian/"
+	[ -f /etc/apt/sources.list.d/itbs.list ] && { grep -v -F "$repository" /etc/apt/sources.list.d/itbs.list ; echo "$repository_str" ; } > /etc/apt/sources.list.d/itbs.list.new || { echo "$repository_str" ; } > /etc/apt/sources.list.d/itbs.list.new
+	[ -f /etc/apt/sources.list.d/itbs.list.new ] && mv -b /etc/apt/sources.list.d/itbs.list.new /etc/apt/sources.list.d/itbs.list
+	cronid='install itbs-apps'
+	croncmd='apt-get update && apt-get --yes install itbs-apps'
+	cronjob="$cronmin 6 * * * $croncmd"
+	{ crontab -l | grep -v -F "$cronid" ; echo "$cronjob" ; } | crontab -
+	crontab -l | tee -a $logfile
+	
+	echo "[Restart services]" | tee -a $logfile
+	systemctl restart cron 2>&1 | tee -a $logfile
+    systemctl restart snmptrapd 2>&1 | tee -a $logfile
+	
+    # Restart apache so that all site-enables will be updated
+    
+    if systemctl restart apache2.service; then
+      # success
+      event_push app readynasd '<add-s resource-type="LocalApp" resource-id="LocalApp"><LocalApp appname="itbs-apps" success="1" reboot="0"/></add-s>' 0 0
+    else
+      # error
+      event_push app readynasd '<add-s resource-type="LocalApp" resource-id="LocalApp"><LocalApp appname="itbs-apps" success="0"/></add-s>' 0 0
+    fi
+
+	echo "End" | tee -a $logfile
+
+    ;;
+
+  abort-upgrade|abort-remove|abort-deconfigure)
+    ;;
+
+  *)
+    echo "postinst called with unknown argument \`$1'" >&2
+    exit 1
+    ;;
+esac
+
+# dh_installdeb will replace this with shell code automatically
+# generated by other debhelper scripts.
+
+#DEBHELPER#
+
+exit 0

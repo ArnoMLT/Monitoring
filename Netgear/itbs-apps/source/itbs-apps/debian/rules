@@ -10,5 +10,16 @@
 export DH_VERBOSE=1
 export DH_ALWAYS_EXCLUDE=.svn
 
+# Must not depend on anything. This is to be called by
+# binary-arch/binary-indep in another 'make' thread.
+binary-common:
+	# Replace __NEW_VERSION__ with the actual new version in any control files
+	for pkg in $$(dh_listpackages -i); do \
+		sed -i -e 's/__NEW_VERSION__/$(shell $(SHELL) debian/gen_deb_version)/' debian/$$pkg/DEBIAN/*; \
+	done
+
+	# Note dh_builddeb *must* come after the above code
+	dh_builddeb
+	
 %:
 	dh $@ 
