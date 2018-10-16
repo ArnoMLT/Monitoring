@@ -67,6 +67,8 @@ case "$1" in
 #    chown guest:guest /$Partage -R
 #    chmod 777 /$Partage -R
     
+	chmod a+x $SUBDIR/scripts/* 2>&1 | tee -a $logfile
+	
     # configuration snmptrapd
 	echo "[snmptrapd]" | tee -a $logfile
     [ -f /etc/default/snmptrapd ] && mv /etc/default/snmptrapd /etc/default/snmptrapd.orig 2>&1 | tee -a $logfile
