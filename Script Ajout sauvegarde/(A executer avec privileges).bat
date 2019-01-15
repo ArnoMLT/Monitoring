@@ -4,6 +4,38 @@ REM MLT
 REM V5.0
 REM 13/05/2018
 
+
+REM ==================
+REM = MODE ELEVATION =
+REM ==================
+
+REM Verification des permissions
+"%SYSTEMROOT%\system32\cacls.exe" "%SYSTEMROOT%\system32\config\system" >nul 2>&1 
+
+REM Erreur vous ne possedez pas les droits admin
+if "%errorlevel%" NEQ "0" (
+	echo Verification des privileges administrateur
+	goto :UACPrompt
+) else (
+	goto :Admin
+)
+
+:UACPrompt
+cd /D %~dp0
+echo Set UAC = CreateObject^("Shell.Application"^) >"%temp%\getadmin.vbs"
+echo UAC.ShellExecute %0, "", "", "runas", 1 >>"%temp%\getadmin.vbs"
+call cscript "%temp%\getadmin.vbs"
+exit /B 0
+
+:Admin
+if exist "%temp%\getadmin.vbs" ( del "%temp%\getadmin.vbs" )
+pushd "%CD%"
+CD /D "%~dp0"
+REM ================
+REM = ELEVATION OK =
+REM ================
+
+
 REM Repertoire de travail
 SET Work_Dir=%~d0%~p0
 SET Work_Dir=%Work_Dir:~0,-1%
