@@ -106,7 +106,7 @@ case "$1" in
 	#cronmin=$(($RANDOM%60))
 	cronmin=$(shuf -i 0-59 -n 1)
 	cronid='Hardware-Nas-Netgear-Readynas-Snmp-NSCA'
-	croncmd="/apps/itbs-apps/monitoring/scripts/nsca_wrapper -S \"Hardware-Nas-Netgear-Readynas-Snmp-NSCA\" -H \"$HOSTNAME\" -C \"/usr/bin/perl $CENTREONPLUGINSDIR/centreon_plugins.pl --plugin=storage::netgear::readynas::snmp::plugin --mode=hardware --hostname=127.0.0.1\""
+	croncmd="/apps/itbs-apps/monitoring/scripts/nsca_wrapper -S \"Hardware-Nas-Netgear-Readynas-Snmp-NSCA\" -H \"$HOSTNAME\" -C \"/usr/bin/perl $CENTREONPLUGINSDIR/centreon_plugins.pl --plugin=storage::netgear::readynas::snmp::plugin --mode=hardware --hostname=127.0.0.1 --snmp-autoreduce\""
 	cronjob="$cronmin * * * * $croncmd"
 	[ -f /var/spool/cron/crontabs/$USER ] && { crontab -l | grep -v -F "$cronid" ; echo "$cronjob" ; } | crontab - || { echo "$cronjob" ; } | crontab -
 	crontab -l | tee -a $logfile
