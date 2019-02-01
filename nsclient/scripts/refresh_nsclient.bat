@@ -1,7 +1,7 @@
 @echo off
 
 REM MLT
-REM 25/06/2018
+REM 02/01/2019
 
 REM Cree ou met a jour une tache planifiee pour redemarrer le service nscp
 
@@ -17,14 +17,19 @@ REM
 REM Lecture des parametres
 REM
 set install=
+set disable=
 for %%i in (%*) do (
 	if /I "%%i" == "/install" set install=true
+	if /I "%%i" == "/disable" set disable=true
+	if /I "%%i" == "/enable"  set enable=true
 )
 
 REM
 REM Traitement des params
 REM
 if /I "%install%" == "true" GOTO :INSTALL
+if /I "%disable%" == "true" GOTO :DISABLE
+if /I "%enable%" ==  "true" GOTO :ENABLE
 GOTO LAUNCH
 
 
@@ -69,6 +74,28 @@ if %err_code% == 0 (
 )
 
 if not %err_code% == 0 exit /b 2
+exit /b 0
+
+
+
+REM =========
+REM /disable
+REM =========
+:DISABLE
+REM Desactive la tache sans la supprimer
+
+schtasks /Change /TN "NSClient++ Service restart" /disable >NUL
+exit /b 0
+
+
+
+REM ========
+REM /enable
+REM ========
+:ENABLE
+REM Active la tache
+
+schtasks /Change /TN "NSClient++ Service restart" /enable >NUL
 exit /b 0
 
 
