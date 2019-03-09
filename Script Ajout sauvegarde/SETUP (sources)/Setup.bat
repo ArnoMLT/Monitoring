@@ -1,6 +1,7 @@
 @echo off
 
 REM 24/09/2018
+REM Last update 09/03/2019
 REM MLT
 REM v5.1
 REM Bootstrap pour installer le module de monitoring IT-BS
@@ -11,7 +12,7 @@ REM = MODE ELEVATION =
 REM ==================
 
 REM Verification des permissions
-"%SYSTEMROOT%\system32\cacls.exe" "%SYSTEMROOT%\system32\config\system" >nul 2>&1 
+NET FILE >nul 2>&1
 
 REM Erreur vous ne possedez pas les droits admin
 if "%errorlevel%" NEQ "0" (
@@ -25,7 +26,7 @@ if "%errorlevel%" NEQ "0" (
 SET setup_dir=%CD%
 cd /D %~dp0
 echo Set UAC = CreateObject^("Shell.Application"^) >"%temp%\getadmin.vbs"
-echo UAC.ShellExecute "%setup_dir%\%0", "", "", "runas", 1 >>"%temp%\getadmin.vbs"
+echo UAC.ShellExecute "%~n0%~x0", "%~dp0", "", "runas", 1 >>"%temp%\getadmin.vbs"
 call cscript "%temp%\getadmin.vbs"
 pause
 exit /B 0
@@ -96,6 +97,11 @@ REM Recupere la liste des fichiers à télécharger
 	
 REM Telecharge tous les fichiers de la liste
 "%Work_Dir%\wget" -N -P "%Install_Dir%\..\nsclient" -i "%Install_Dir%\..\nsclient\list.txt"
+
+REM Telecharge la bonne version de NSCP (32 ou 64)
+reg Query "HKLM\Hardware\Description\System\CentralProcessor\0" | find /i "x86" > NUL && set OS=32BIT || set OS=64BIT
+if %OS%==32BIT "%Work_Dir%\wget" -N "http://monitoring.it-bs.fr/nsclient/bin/NSCP-Win32.msi" -P "%Work_Dir%\..\nsclient" --no-check-certificate
+if %OS%==64BIT "%Work_Dir%\wget" -N "http://monitoring.it-bs.fr/nsclient/bin/NSCP-x64.msi" -P "%Work_Dir%\..\nsclient" --no-check-certificate
 
 REM Nettoyage des fichiers temporaires
 del "%Install_Dir%\..\nsclient\list.txt"

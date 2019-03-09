@@ -2,6 +2,7 @@
 
 REM 13/05/2018
 REM MLT
+REM Last update 09/03/2019
 REM v5.0
 REM Module de mise a jour
 
@@ -60,7 +61,7 @@ for /F "tokens=1,2 usebackq delims==" %%v in ("%Work_Dir%\config.ini") do (
 SET filelist="http://monitoring.it-bs.fr/nsclient/list.txt"
 if exist "%Work_Dir%\..\nsclient\install.bat" del /q /f "%Work_Dir%\..\nsclient\install.bat"
 
-if not exist "%Work_Dir%\NSClientSrvToInstall.csv" GOTO :SCRIPT_LAUNCH
+REM if not exist "%Work_Dir%\NSClientSrvToInstall.csv" GOTO :SCRIPT_LAUNCH
 
 findstr /B /E /I "%SrvName%" "%Work_Dir%\NSClientSrvToInstall.csv"
 if %ERRORLEVEL% == 0 (
@@ -72,25 +73,27 @@ if %ERRORLEVEL% == 0 (
 	if !ERRORLEVEL! == 0 GOTO :NSCLIENT_SETUP
 )
 
-GOTO :SCRIPT_LAUNCH
+REM GOTO :SCRIPT_LAUNCH
 
 :NSCLIENT_SETUP
 if not exist "%Work_Dir%\..\nsclient" md "%Work_Dir%\..\nsclient"
 
-REM TEMP 14/09/18
-REM update tache restart
-REM schtasks /change /TN "NSClient++ Service restart" /TR "cmd /c 'C:\Program Files\NSClient++\scripts\itbs\refresh_nsclient.bat'" >NUL
-REM schtasks /run /TN "NSClient++ Service restart"
+REM TEMP 11/02/19
+REM remise en route forcee tache restart
+rem schtasks /Change /TN "NSClient++ Service restart" /enable >NUL
+schtasks /run /TN "NSClient++ Service restart"
 REM ---
 
 REM Recupere la liste des fichiers à télécharger
 "%Work_Dir%\wget" -N %filelist% -P "%Work_Dir%\..\nsclient" --no-check-certificate
 
-REM copie de nscp-x64.msi pour compraison future...
-rem copy "%Work_Dir%\..\nsclient\NSCP-x64.msi" "%Work_Dir%\..\nsclient\NSCP-x64.old"
-	
 REM Telecharge tous les fichiers de la liste
 "%Work_Dir%\wget" -N -P "%Work_Dir%\..\nsclient" -i "%Work_Dir%\..\nsclient\list.txt"
+
+REM Telecharge la bonne version de NSCP (32 ou 64)
+reg Query "HKLM\Hardware\Description\System\CentralProcessor\0" | find /i "x86" > NUL && set OS=32BIT || set OS=64BIT
+if %OS%==32BIT "%Work_Dir%\wget" -N "http://monitoring.it-bs.fr/nsclient/bin/NSCP-Win32.msi" -P "%Work_Dir%\..\nsclient" --no-check-certificate
+if %OS%==64BIT "%Work_Dir%\wget" -N "http://monitoring.it-bs.fr/nsclient/bin/NSCP-x64.msi" -P "%Work_Dir%\..\nsclient" --no-check-certificate
 
 REM Nettoyage des fichiers temporaires
 del "%Work_Dir%\..\nsclient\list.txt"

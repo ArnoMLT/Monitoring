@@ -1,4 +1,3 @@
 @echo off
 
-iexpress /n setup_monitoring.SED
-
+C:\Windows\SysWOW64\iexpress /n setup_monitoring.SED
