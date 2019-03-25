@@ -4,6 +4,8 @@
 # create_trap.pl <hostname> <trapfile_content>
 
 my $spoolFolder = "/var/spool/centreontrapd/"; # ajouter les droits en modif sur le repertoire
+# chgrp centreon-engine /var/spool/centreontrapd/
+# chmod 775 /var/spool/centreontrapd/
 #my $spoolFolder = "/tmp/";
 
 # hostname (1er arg)
