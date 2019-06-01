@@ -1,5 +1,5 @@
 # MLT
-# 26/08/2018
+# 06/03/2019
 #
 # Package de manipulation des fichiers ini produits par NSClient++ (windows)
 #
@@ -12,11 +12,13 @@ use Carp;
 
 use Data::Dumper;
 use List::MoreUtils qw(first_index);
+use LWP::Simple;
 
 
 #
 # TODO :
-# 
+#
+
 
 
 
@@ -27,10 +29,10 @@ sub new {
 	
 	bless $self, $class;
 	
-	$self->{config_href} = {};
+	$self->{config_href} = { 'default' => {} };
 	$self->{config_file} = $args->{config_file};
 	
-	$self->load($args->{token});
+	# $self->load($args->{token});
 	
 	return $self;
 }
@@ -53,34 +55,76 @@ sub read_from_file {
 	# Ouverture du fichier de config NSClient++
 	if (open(my $file, '<', $config_file)){
 		while (my $line  = <$file> ){
-			chomp($line);
-
-			# ---> $token n'est pas renseigné <---
-			# On saute les commentaires et les lignes vides
-			# prise en compte en debut de ligne de l'encode BOM éventuel
-			if (! $token && $line !~ /^[^[:print:]]*\s*[;#]/ && $line !~ /^[^[:print:]]*\s*$/){
-				$current_section = $self->_parse_one_line($href, $current_section, $line);
-				
-			}else{
-				# ---> $token est renseigné <---
-				#ligne de commentaire ou ligne vide et on sait pas pour $token
-				if ($token && $line =~ /^[;#]/ && $line !~ /^\s*$/){
-					$line =~ s/^[;#]+\s*//; # enleve la mise en commentaire
-					
-					if ($line =~/^\Q$token/){		
-						$line =~ s/^\Q$token\E\s*//;
-						$current_section = $self->_parse_one_line($href, $current_section, $line);
-					}
-				}
-			}
+            $current_section = $self->_read_one_line($line, $current_section, $href, $token);
 		}
 		close($file);
 	
 	} else {
-		warn "Impossible d'ouvrir '$config_file' : $!";
+		warn "Impossible d'ouvrir '$config_file' : $!<BR>";
 	}
 	
 	return $href;
+}
+
+
+#
+# Lit le fichier ini a l'url $url et retourne une reference vers le href crée
+# les noms de section sont converties en minuscules
+# les clés aussi. Seules les valeurs restent inchangées.
+# $token modifie le comportement :
+# si défini, on ne lit que les lignes de commentaire qui commencent par ce token
+#   le token'++' va permettre d'ajouter uniquement ces lignes
+#
+sub read_from_url {
+    my ($self, $url, $token) = @_;
+    my $current_section;
+    my $href = {};
+    
+    # Telecharge de contenu du fichier
+    my $file = get($url);
+    
+    if ($file){
+        my @lines = split /\n/, $file;
+        
+        foreach my $line (@lines){
+            $current_section = $self->_read_one_line($line, $current_section, $href, $token);
+        }    
+    }else{
+        warn "$url introuvable<BR>";
+    }
+    
+    return $href;
+}
+
+
+#
+# Lit et traite une ligne d'un fichier ini
+#
+sub _read_one_line {
+    my ($self, $line, $current_section, $href, $token) = @_;
+
+    chomp($line);
+
+    # ---> $token n'est pas renseigné <---
+    # On saute les commentaires et les lignes vides
+    # prise en compte en debut de ligne de l'encode BOM éventuel
+    if (! $token && $line !~ /^[^[:print:]]*\s*[;#]/ && $line !~ /^[^[:print:]]*\s*$/){
+        $current_section = $self->_parse_one_line($href, $current_section, $line);
+        
+    }else{
+        # ---> $token est renseigné <---
+        #ligne de commentaire ou ligne vide et on sait pas pour $token
+        if ($token && $line =~ /^[;#]/ && $line !~ /^\s*$/){
+            $line =~ s/^[;#]+\s*//; # enleve la mise en commentaire
+            
+            if ($line =~/^\Q$token/){		
+                $line =~ s/^\Q$token\E\s*//;
+                $current_section = $self->_parse_one_line($href, $current_section, $line);
+            }
+        }
+    }
+    
+    return $current_section;
 }
 
 
@@ -89,13 +133,12 @@ sub read_from_file {
 #
 sub read_from_file_inside {
 	my ($self, $config_file, $token) = @_;
-	my $token_key = $token;
+		
+	$token = 'default' unless (defined $token);
 	
-	$token_key = 'default' unless (defined $token_key);
+	$self->{config_href}->{$token} = $self->read_from_file($config_file, $token);
 	
-	$self->{config_href}->{$token_key} = $self->read_from_file($config_file, $token);
-	
-	return $self->get_config();
+	return $self->get_config($token);
 }
 
 
@@ -122,7 +165,7 @@ sub write_to_file {
 		close($file) or warn "Erreur a l'enregistrement du fichier";
 	
 	}else{
-		warn "Impossible de créer '$config_file' : $!";
+		warn "Impossible de créer '$config_file' : $!<BR>";
 		return;
 	}
 }
@@ -143,18 +186,26 @@ sub save {
 # dans le fichier de config de la classe
 #
 sub import_template_inside {
-	my ($self, $template, $token) = @_;
-	# my $template_hash;
-	
-	# 
+	my ($self, $template, $template_token) = @_;
+        
 	if (ref($template) eq "NSClient"){
 		# Import a partir d'un hash de templates
-		$self->merge_hash_inside($template->get_config($token));
+		$self->merge_hash_inside($template->get_config($template_token));
 	
 	}else{
-		# Import a partir d'un fichier
-		$self->merge_hash_inside($self->read_from_file($template, $token));
-	}
+        # Optimisation : si possible, on lit en local et pas sur le site http distant
+        $template =~ s/^http:\/\/monitoring\.it\-bs\.fr\/nsclient/$main::global_opts->{'path_to_nsclient_config'}/;
+
+        if ($template =~ /^http:\/\//){
+            # Import a partir d'un fichier a l'aide d'une url
+            # print "Insertion depuis une url\n";
+            $self->merge_hash_inside($self->read_from_url($template, $template_token));
+        
+        }else{
+            # Import a partir d'un fichier a l'aide d'un path local
+            $self->merge_hash_inside($self->read_from_file($template, $template_token));
+        }
+    }
 }
 
 
@@ -174,6 +225,72 @@ sub prune_templates_inside {
 	}
 	
 	@$includes_ref = @includes;
+}
+
+
+#
+# Lit recursivement le contenu des '/includes' et retourne un href "à plat"
+# = supprime l'imbrication des includes
+#
+sub _expand_includes {
+    my ($self, @includes) = @_;
+    my $href_out = {};
+    my $href_read = {};
+    
+	while (@includes){
+		my $key = shift(@includes);
+		my $value = shift(@includes);
+        
+        # Optimisation : si possible, on lit en local et pas sur le site http distant
+        $value =~ s/^http:\/\/monitoring\.it\-bs\.fr\/nsclient/$main::global_opts->{'path_to_nsclient_config'}/;
+        
+        if ($value =~ /^http:\/\//){
+        
+            # Import a partir d'un fichier a l'aide d'une url
+            $href_read = $self->read_from_url($value);
+            
+        }else{
+            # Import a partir d'un fichier a l'aide d'un path local
+            $href_read = $self->read_from_file($value);
+        }
+        
+        $self->expand_href_includes($href_read);
+        $self->_merge_hash($href_out, $href_read);
+    }
+    
+    return $href_out;
+}
+
+
+#
+# Modifie le $href passe en parametre
+# En appliquant _expand_includes sur les /includes
+# A la fin, le $href ne contient plus aucune imbrication
+#
+sub expand_href_includes {
+    my ($self, $href) = @_;
+    
+    # expand de tous les includes
+    my $href_temp = $self->_expand_includes(@{$href->{includes}});
+    
+    delete $href->{'includes'};
+    
+    # merge sans ecrasement
+    $self->_merge_hash($href, $href_temp, 0);
+}
+
+
+#
+# Supprime les /includes dans le config_href
+# en appliquand expand_href_includes
+#
+sub expand_inside {
+    my ($self, $token) = @_;
+    
+	# $token = 'default' unless (defined $token);
+    
+    my $href_temp = $self->get_config($token);
+    $self->expand_href_includes($href_temp);
 }
 
 
@@ -213,7 +330,7 @@ sub _parse_one_line {
 	# Sections
 	if ($line =~ /\[(.*)\]/){
 		if (substr ($1, 0, 1) ne "/"){
-			warn "Exclusion de la ligne $. : La section ne commence pas par '/'";
+			warn "Exclusion de la ligne $. : La section ne commence pas par '/'<BR>";
 			return undef;
 		}
 		
@@ -234,7 +351,7 @@ sub _parse_one_line {
 		if (defined($current_section)){
 			my @keys = split(/=/, $line);
 			# if (scalar(@keys) > 2){
-				# warn "Exclusion de la ligne $. : Plusieurs signes '='";
+				# warn "Exclusion de la ligne $. : Plusieurs signes '='<BR>";
 			
 			# }else{
 				# my ($key, $value) = @keys;
@@ -255,7 +372,7 @@ sub _parse_one_line {
 				}
 			# }
 		}else{
-			warn "Exclusion de la ligne $. : Pas de section définie. $line";
+			warn "Exclusion de la ligne $. : Pas de section définie. $line<BR>";
 		}
 	}
 
@@ -283,20 +400,87 @@ sub _split_sections_into_href {
 
 
 #
-# injecte le contenu de $file_out (string) dans le fichier de conf de la classe
+# Genere un href d'apres le contenu des macros d'un host
+# retourne le href genere
+#
+sub parse_host_macro_into_href {
+    my ($self, $centreon_user, $centreon_pass, $hostname) = @_;
+    my $href = {};
+    # print "DEBUG in parse_host_macro_into_href - $hostname\n";
+    my @clapi_result = `centreon -u $centreon_user -p $centreon_pass -o HOST -a GETMACRO -v  "$hostname"`;
+    # macro name;macro value;is_password;description;source
+    # macro name contient [/section],key
+	shift @clapi_result;  # la 1ere ligne contient les entetes de colonnes
+    
+    foreach my $line (@clapi_result){
+        chomp $line;
+        my @fields = split(/;/, $line);
+        splice(@fields,-3); # retire les 3 derniers champs
+        # Il reste : [SECTION],KEY;value
+        
+        my ($section, $key) = split(/,/, $fields[0]);
+        shift @fields;
+        # my ($section, $key, @value) = @fields;
+        # my $value = join(';', @value);
+        my $value = join(';', @fields);
+
+        # traitement sur [/SECTION/SECTION2]
+        $section =~ s/\[(.*)\]/$1/;
+        $section = lc $section;
+        my @section_words = split (/\//, $section);
+        shift @section_words;
+        
+        # traitement sur KEY
+        $key =~ s/^\s*(.*?)\s*$/$1/;
+		$key = lc $key;
+        
+        # traitement sur value
+        $value=~ s/^\s*(.*?)\s*$/$1/;
+
+        # Si on est sur la section '/includes' on insère dans une liste pour respecter l'ordre
+		if ($section eq "/includes"){
+			# $href->{'includes'} = ();
+            $self->_set_order_section_value($href, $section, $key, $value) or croak "$hostname : Impossible d'inserer dans '$section'<BR>";
+		}else{
+            # maintenant on ajoute ca au href
+            $self->_merge_hash($href, $self->_split_sections_into_href(@section_words));
+            $self->set_section_value($href, $section, $key, $value) or croak "$hostname : Impossible d'inserer dans '$section'<BR>";
+        }   
+    }
+    
+    return $href;
+}
+
+
+#
+# injecte un href cree d'apres les macros d'un host dans le href de la classe
+# En ecrasant ce qui existe deja
+#
+sub parse_host_macro_inside {
+    my ($self, $centreon_user, $centreon_pass, $hostname) = @_;
+    
+    my $href = $self->parse_host_macro_into_href($centreon_user, $centreon_pass, $hostname);
+    $self->merge_hash_inside($href);
+
+    return $href;
+}
+
+
+#
+# injecte avec ecrasement le contenu de $file_out (string) dans le fichier de conf de la classe
 # la methode load() doit avoir ete appelee avant.
 #
 sub merge_file_inside {
-	my ($self, $file_out) = @_;
+	my ($self, $file_out, $token) = @_;
 	
 	# print Dumper($file_out);
-	croak "load() non effectué ou \$config_href invalide" if (not get_config());
+	croak "load() non effectué ou \$config_href invalide<BR>" if (not $self->get_config($token));
 	
 	# Charge le fichier $file_out
 	my $nsclient_out = NSClient->new({config_file => $file_out});
-	# $nsclient_out->load() or croak "Impossible de charger le fichier '$file_out'";
+	$nsclient_out->load() or croak "Impossible de charger le fichier '$file_out'<BR>";
 	
-	$self->merge_hash_inside($nsclient_out->get_config());
+	$self->merge_hash_inside($nsclient_out->get_config(), $token);
 	
 	return $self->save();
 }
@@ -315,23 +499,31 @@ sub get_config {
 
 #
 # fusion du contenu du hash_new dans $hash1 RECURSIVEMENT
+# si $overwrite est positionne sur true, ecrasement possible dans $hash1
+# sinon pas d'ecrasement
+# par defaut (si omis) $overwrite est positionné
 # 
 sub _merge_hash {
-	my ($self, $hash1, $hash_new) = @_;
+	my ($self, $hash1, $hash_new, $overwrite) = @_;
 	my @keys;
 
+    # Par defaut on ecrase
+    $overwrite = 1 unless (defined $overwrite);
+    
 	# On n'insere pas un hash vide {} si key est deja existante
 	if (%$hash_new){
 		foreach my $key (keys(%$hash_new)){
 			if (defined($hash1->{$key}) && ref($hash1->{$key}) eq 'HASH'){
-				$self->_merge_hash($hash1->{$key}, $hash_new->{$key});
+				$self->_merge_hash($hash1->{$key}, $hash_new->{$key}, $overwrite);
 			
 			# Prise en compte de listes pour les sections dont l'ordre est important
 			}elsif (defined($hash1->{$key}) && ref($hash1->{$key}) eq 'ARRAY'){
-				$self->_merge_list($hash1->{$key}, $hash_new->{$key});
+				$self->_merge_list($hash1->{$key}, $hash_new->{$key}, $overwrite);
 			
 			}else{
-				$hash1->{$key} = $hash_new->{$key};
+                if (! defined $hash1->{$key} || $overwrite){
+                    $hash1->{$key} = $hash_new->{$key};
+                }
 			}
 		}
 	}
@@ -341,12 +533,14 @@ sub _merge_hash {
 
 
 #
-# fusion du $hash_new dans le config_href de la classe
+# fusion avec ecrasement du $hash_new dans le config_href de la classe
 #
 sub merge_hash_inside {
-	my ($self, $hash_new) = @_;
-	
-	return $self->_merge_hash($self->get_config(), $hash_new);
+	my ($self, $hash_new, $token) = @_;
+    
+	# $token = 'default' unless (defined $token);
+	    
+	return $self->_merge_hash($self->get_config($token), $hash_new);
 }
 
 
@@ -354,8 +548,11 @@ sub merge_hash_inside {
 #
 #
 sub _merge_list {
-	my ($self, $list1, $list_new) = @_;
+	my ($self, $list1, $list_new, $overwrite) = @_;
 	
+    # par defaut on ecrase
+    $overwrite = 1 unless (defined $overwrite);
+    
 	# creation d'une liste a part pour ne pas travailler
 	# directement sur un modele
 	my @list_new_copy = @$list_new;
@@ -365,14 +562,21 @@ sub _merge_list {
 		my $key = shift(@list_new_copy);
 		my $value = shift(@list_new_copy);
 		
-		# Si la clé existe déjà, on supprime la clé et la valeur associée pour mettre la nouvelle entrée a la fin
-		my $i = first_index {$_ eq $key} @$list1;
-		
-		if ($i > -1){ # existe deja
-			#@$list1[$i+1] = $value;
-			splice(@$list1, $i, 2);	
-		}
-		push(@$list1, ($key, $value));
+        my $i = first_index {$_ eq $key} @$list1;
+        
+        if ($i == -1){ # N'existe pas : on insere dans tous les cas
+            push(@$list1, ($key, $value));
+
+        }else{
+            if ($overwrite){ # existe deja et overwrite
+                # on supprime la clé et la valeur associée pour mettre la nouvelle entrée a la fin
+                splice(@$list1, $i, 2);	
+                push(@$list1, ($key, $value));
+
+            }else{
+                # existe deja et sans overwrite : on ne fait rien
+            }            
+        }
 	}
 }
 
@@ -388,9 +592,7 @@ sub get_section_href {
 	shift @sections;
 	
 	while (@sections){
-		#print Dumper(@sections);
 		$href = $href->{shift @sections};
-		#print Dumper($href);
 	}
 	
 	return $href;
