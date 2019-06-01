@@ -10,21 +10,20 @@
 
 # 
 #
-# PAHSE 2 :
+# PHASE 2 :
 # Creation du fichier nsclient.ini propre au PC
 #	Soit a la racine de ftp_config_dir dans un dossier du nom du host_id centreon (si pas de domaine trouve dans le nom de machine)
 #	Soit dans ftp_config_dir/domaine.local dans un dossier du nom nom du host_id centreon
 #
 
-
+# Chargement de la config globale
+source "/usr/lib/nagios/plugins/itbs/etc/config.cfg"
 
 
 
 
 
 now=`date +%s`
-commandfile='/var/lib/centreon-engine/rw/centengine.cmd'
-centreon_admin_password='P@ssword!itbs'
 
 # chemins locaux
 get_instance="$1/get_instance.sh"
@@ -34,9 +33,10 @@ ressource_clientini_2="$1/ressources/client.ini-phase2"		# fichier client.ini mo
 local_nsclient_temp="/tmp/nsclient.ini-$now" 				# fichier de construction du nsclient.ini avant de l'envoyer sur le ftp
 
 # chemins sur le FTP
-ftp_site='ftp.it-bs.fr'
-ftp_temp_config_dir='nsclient/config-temp'
-ftp_config_dir='nsclient/config/clients'
+# ftp_temp_config_dir='nsclient/config-temp'
+relative_temp_config_dir='config-temp'
+# ftp_config_dir='nsclient/config/clients'
+relative_config_dir='config/clients'
 
 # variables nsclient.ini
 http_script_dir='http://monitoring.it-bs.fr/nsclient/scripts/itbs/new_host'
@@ -130,7 +130,7 @@ echo "host_ip_address : $host_ip_address" >> $logfile
 poller_id=1
 
 # Creation du nouveau host avec clapi
-clapi_cmd='centreon -u admin -p $centreon_admin_password -o HOST -a ADD -v "$host_name;$host_alias;$host_ip_address;$host_template;$instance_name;$host_group"'
+clapi_cmd='centreon -u $centreon_admin_user -p $centreon_admin_password -o HOST -a ADD -v "$host_name;$host_alias;$host_ip_address;$host_template;$instance_name;$host_group"'
 echo "Creation du host avec CLAPI..." >>$logfile 2>&1
 
 #eval centreon_admin_password='xxxxxxxx' echo $clapi_cmd >>$logfile 2>&1
@@ -141,7 +141,7 @@ if [ $? -eq 1 ] ; then
 	"Object already exists"*)
 		echo "CLAPI : $error_message => Mise a jour du host" >> $logfile
 		# renomme le host en suivant la casse (NSCA)
-		clapi_cmd='centreon -u admin -p $centreon_admin_password -o HOST -a setparam -v "$host_name;name;$host_name"'
+		clapi_cmd='centreon -u $centreon_admin_user -p $centreon_admin_password -o HOST -a setparam -v "$host_name;name;$host_name"'
 		echo "Renommage du host avec CLAPI..." >>$logfile 2>&1		
 		error_message=$(eval $clapi_cmd)
 		if [ $? -eq 1 ] ; then
@@ -155,9 +155,9 @@ if [ $? -eq 1 ] ; then
 		# Mais NSCA doit etre en 1er sinon le host n'accepte pas les controles passifs
 		echo "Mise a jour du host avec CLAPI..." >>$logfile 2>&1
 		
-		old_template=$(centreon -u admin -p $centreon_admin_password -o HOST -a gettemplate -v "$host_name" | tail -n +2 | cut -d ";" -f 2)
+		old_template=$(centreon -u $centreon_admin_user -p $centreon_admin_password -o HOST -a gettemplate -v "$host_name" | tail -n +2 | cut -d ";" -f 2)
 		
-		clapi_cmd='centreon -u admin -p $centreon_admin_password -o HOST -a settemplate -v "$host_name;$host_template"'
+		clapi_cmd='centreon -u $centreon_admin_user -p $centreon_admin_password -o HOST -a settemplate -v "$host_name;$host_template"'
 		echo "Mise a jour du host avec CLAPI..." >>$logfile 2>&1
 		error_message=$(eval $clapi_cmd)
 		
@@ -168,7 +168,7 @@ if [ $? -eq 1 ] ; then
 		fi
 		
 		for i in $old_template ; do
-			clapi_cmd='centreon -u admin -p $centreon_admin_password -o HOST -a addtemplate -v "$host_name;$i"'
+			clapi_cmd='centreon -u $centreon_admin_user -p $centreon_admin_password -o HOST -a addtemplate -v "$host_name;$i"'
 			echo "Ajout du template $i avec CLAPI..." >>$logfile 2>&1
 			error_message=$(eval $clapi_cmd)
 		
@@ -179,7 +179,7 @@ if [ $? -eq 1 ] ; then
 			fi
 		done
 
-		clapi_cmd='centreon -u admin -p $centreon_admin_password -o HOST -a addtemplate -v "$host_name;$host_template"'
+		clapi_cmd='centreon -u $centreon_admin_user -p $centreon_admin_password -o HOST -a addtemplate -v "$host_name;$host_template"'
 		echo "Mise a jour du host avec CLAPI..." >>$logfile 2>&1
 		error_message=$(eval $clapi_cmd)
 		
@@ -202,7 +202,7 @@ if [ $? -eq 1 ] ; then
 fi
 
 # Mise a jour des services du template
-clapi_cmd='centreon -u admin -p $centreon_admin_password -o HOST -a applytpl -v "$host_name"'
+clapi_cmd='centreon -u $centreon_admin_user -p $centreon_admin_password -o HOST -a applytpl -v "$host_name"'
 echo "Mise a jour des services avec CLAPI..." >>$logfile 2>&1
 
 error_message=$(eval $clapi_cmd)
@@ -214,7 +214,7 @@ if [ $? -eq 1 ] ; then
 fi
 	
 # Get Centreon _HOST_ID
-host_id=$(centreon -u admin -p $centreon_admin_password -o HOST -a SHOW | sed -rn "s/^([0-9]+);$host_name;.*/\1/pI")
+host_id=$(centreon -u $centreon_admin_user -p $centreon_admin_password -o HOST -a SHOW | sed -rn "s/^([0-9]+);$host_name;.*/\1/pI")
 IFS=";" read -a host_id <<<$host_id
 echo "HOST_ID = $host_id" >>$logfile
 
@@ -227,20 +227,20 @@ echo "HOST_ID = $host_id" >>$logfile
 echo "Application de la config dans centreon..." >> $logfile
 
 echo "Generer les fichiers de configuration" >> $logfile
-error_message=$(sudo -u apache centreon -u admin -p $centreon_admin_password -a POLLERGENERATE -v $poller_id)
+error_message=$(sudo -u apache centreon -u $centreon_admin_user -p $centreon_admin_password -a POLLERGENERATE -v $poller_id)
 if [ $? -eq 1 ] ; then
-	echo centreon -u admin -p $centreon_admin_password -a POLLERGENERATE -v $poller_id | tee -a $logfile
+	echo centreon -u $centreon_admin_user -p $centreon_admin_password -a POLLERGENERATE -v $poller_id | tee -a $logfile
     echo $error_message | tee -a $logfile
 	echo "CLAPI : erreur generation => EXIT" | tee -a $logfile
 	printf "[%lu] PROCESS_HOST_CHECK_RESULT;$2;1;$error_message" $now > $commandfile
 	exit 3
 else
-	echo centreon -u admin -p $centreon_admin_password -a POLLERGENERATE -v $poller_id | tee -a $logfile
+	echo centreon -u $centreon_admin_user -p $centreon_admin_password -a POLLERGENERATE -v $poller_id | tee -a $logfile
     echo $error_message | tee -a $logfile
 fi
 
 echo "Lancer le debogage du moteur de supervision (-v)" >> $logfile
-error_message=$(sudo -u apache centreon -u admin -p $centreon_admin_password -a POLLERTEST -v $poller_id)
+error_message=$(sudo -u apache centreon -u $centreon_admin_user -p $centreon_admin_password -a POLLERTEST -v $poller_id)
 if [ $? -eq 1 ] ; then
 	echo $error_message | tee -a $logfile
 	echo "CLAPI : erreur test config => EXIT" | tee -a $logfile
@@ -251,7 +251,7 @@ else
 fi
 
 echo "Deplacer les fichiers generes" >> $logfile
-error_message=$(sudo -u apache centreon -u admin -p $centreon_admin_password -a CFGMOVE -v $poller_id)
+error_message=$(sudo -u apache centreon -u $centreon_admin_user -p $centreon_admin_password -a CFGMOVE -v $poller_id)
 if [ $? -eq 1 ] ; then
 	echo $error_message | tee -a $logfile
 	echo "CLAPI : erreur deplacement des fichiers => EXIT" | tee -a $logfile
@@ -262,7 +262,7 @@ else
 fi
 
 echo "Redemarrer l'ordonnanceur" >> $logfile
-error_message=$(sudo -u apache centreon -u admin -p $centreon_admin_password -a POLLERRELOAD -v $poller_id)
+error_message=$(sudo -u apache centreon -u $centreon_admin_user -p $centreon_admin_password -a POLLERRELOAD -v $poller_id)
 if [ $? -eq 1 ] ; then
 	echo $error_message | tee -a $logfile
 	echo "CLAPI : erreur reload => EXIT" | tee -a $logfile
@@ -284,10 +284,10 @@ echo "OK !" >> $logfile
 host_domaine=${host_name#*.}
 
 #ftp_temp_config_dir="$ftp_temp_config_dir/$host_name-$host_ip_address"
-http_temp_config_dir="http://monitoring.it-bs.fr/$ftp_temp_config_dir"
+http_temp_config_dir="http://monitoring.it-bs.fr/nsclient/$relative_temp_config_dir"
 http_temp_config_dir=$(echo $http_temp_config_dir | sed -e 's/\//\\\//g')
 
-ftp_client_dir="$ftp_config_dir/$host_domaine"
+ftp_client_dir="nsclient/$relative_config_dir/$host_domaine"
 http_client_dir="http://monitoring.it-bs.fr/$ftp_client_dir"
 http_config_file="$http_client_dir/$host_id/nsclient.ini"
 http_config_file=$(echo $http_config_file | sed -e 's/\//\\\//g')
@@ -311,19 +311,21 @@ sed -i "s/@@HTTP_SCRIPTDIR@@/$http_script_dir/g" $local_nsclient_temp
 sed -i "s/@@HTTP_CONFIGFILE@@/$http_config_file/g" $local_nsclient_temp
 
 # copier le fichier vers le ftp (dossier temporaire)
-echo "depose de nsclient.ini sur le FTP ($ftp_temp_config_dir)" | tee -a $logfile
+echo "depose de nsclient.ini sur le FTP ($path_to_nsclient_config/$relative_temp_config_dir)" | tee -a $logfile
 
-ftp $ftp_site <<EOF
-$(ftp_mkdir "$ftp_temp_config_dir")
-binary
-put $local_nsclient_temp $host_name-$host_ip_address.ini
-quit
-EOF
+mkdir -p $path_to_nsclient_config/$relative_temp_config_dir
+cp $local_nsclient_temp $path_to_nsclient_config/$relative_temp_config_dir/$host_name-$host_ip_address.ini
+# ftp $ftp_site_addr <<EOF
+# $(ftp_mkdir "nsclient/$relative_temp_config_dir")
+# binary
+# put $local_nsclient_temp $host_name-$host_ip_address.ini
+# quit
+# EOF
 
 #rm -f $local_nsclient_temp
 tempdir="/tmp"
-mkdir -p $tempdir/$ftp_temp_config_dir
-mv -f $local_nsclient_temp $tempdir/$ftp_temp_config_dir/$host_name-$host_ip_address.ini
+mkdir -p $tempdir/nsclient/$relative_temp_config_dir
+mv -f $local_nsclient_temp $tempdir/nsclient/$relative_temp_config_dir/$host_name-$host_ip_address.ini
 
 #
 #
@@ -360,14 +362,16 @@ if ! curl -sfI "$http_client_dir/client.ini" > /dev/null ; then
 	sed -i "s/@@CENTREON_DISTANT@@/$centreon_distant_address/g" $local_nsclient_temp
 
 	# copier le fichier vers le ftp
-	echo "depose de client.ini sur le FTP ($ftp_client_dir)" | tee -a $logfile
+	echo "depose de client.ini sur ($path_to_nsclient_config/$relative_config_dir/$host_domaine)" | tee -a $logfile
 	
-	ftp $ftp_site <<EOF | tee -a $logfile 2>&1
-$(ftp_mkdir "$ftp_client_dir")
-binary
-put $local_nsclient_temp client.ini
-quit
-EOF
+mkdir -p $path_to_nsclient_config/$relative_config_dir/$host_domaine
+cp $local_nsclient_temp $path_to_nsclient_config/$relative_config_dir/$host_domaine/client.ini
+	# ftp $ftp_site_addr <<EOF | tee -a $logfile 2>&1
+# $(ftp_mkdir "$ftp_client_dir")
+# binary
+# put $local_nsclient_temp client.ini
+# quit
+# EOF
 
 #	rm -f $local_nsclient_temp
 mkdir -p $tempdir/$ftp_client_dir
@@ -397,21 +401,26 @@ sed -i "s/@@HTTP_CLIENTDIR@@/$http_client_dir2/g" $local_nsclient_temp
 sed -i "s/@@CENTREON_DISTANT@@/$centreon_distant_address/g" $local_nsclient_temp
 
 # copier le fichier vers le ftp
-echo "depose de nsclient.ini sur le FTP ($ftp_client_dir/$host_id)" >>$logfile
+echo "depose de nsclient.ini sur le FTP ($path_to_nsclient_config/$relative_config_dir/$host_domaine/$host_id)" >>$logfile
 
-ftp $ftp_site <<EOF
-$(ftp_mkdir "$ftp_client_dir/$host_id")
-binary
-rename nsclient.ini nsclient.old
-put $local_nsclient_temp nsclient.ini
-quit
-EOF
+mkdir -p $path_to_nsclient_config/$relative_config_dir/$host_domaine/$host_id
+mv $path_to_nsclient_config/$relative_config_dir/$host_domaine/$host_id/nsclient.ini $path_to_nsclient_config/$relative_config_dir/$host_domaine/$host_id/nsclient.old
+cp $local_nsclient_temp $path_to_nsclient_config/$relative_config_dir/$host_domaine/$host_id/nsclient.ini
+# ftp $ftp_site_addr <<EOF
+# $(ftp_mkdir "$ftp_client_dir/$host_id")
+# binary
+# rename nsclient.ini nsclient.old
+# put $local_nsclient_temp nsclient.ini
+# quit
+# EOF
 
 #rm -f $local_nsclient_temp
 mkdir -p $tempdir/$ftp_client_dir/$host_id
 mv -f $local_nsclient_temp $tempdir/$ftp_client_dir/$host_id/nsclient.ini
 
 
+# echo "Sync avec FTP externe" >&2 >> $logfile
+# $sync_ftp_cmd | tee -a $logfile
 
 # Reset host status a ok
 if [ "$host_update" == "true" ] ; then
