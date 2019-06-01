@@ -201,6 +201,8 @@ if [ $? -eq 1 ] ; then
 	esac
 fi
 
+
+
 # Mise a jour des services du template
 clapi_cmd='centreon -u $centreon_admin_user -p $centreon_admin_password -o HOST -a applytpl -v "$host_name"'
 echo "Mise a jour des services avec CLAPI..." >>$logfile 2>&1
@@ -217,6 +219,25 @@ fi
 host_id=$(centreon -u $centreon_admin_user -p $centreon_admin_password -o HOST -a SHOW | sed -rn "s/^([0-9]+);$host_name;.*/\1/pI")
 IFS=";" read -a host_id <<<$host_id
 echo "HOST_ID = $host_id" >>$logfile
+
+# Definition des repertoires ftp du client
+#host_court=${host_name%%.*}
+host_domaine=${host_name#*.}
+
+#ftp_temp_config_dir="$ftp_temp_config_dir/$host_name-$host_ip_address"
+http_temp_config_dir="http://monitoring.it-bs.fr/nsclient/$relative_temp_config_dir"
+http_temp_config_dir=$(echo $http_temp_config_dir | sed -e 's/\//\\\//g')
+
+ftp_client_dir="nsclient/$relative_config_dir/$host_domaine"
+http_client_dir="http://monitoring.it-bs.fr/$ftp_client_dir"
+http_config_file="$http_client_dir/$host_id/nsclient.ini"
+http_config_file=$(echo $http_config_file | sed -e 's/\//\\\//g')
+http_client_dir2=$(echo $http_client_dir | sed -e 's/\//\\\//g')
+
+# Ajout des HOSTMACRO de configuration
+$path_to_nsclient_config/$relative_config_dir/$host_domaine/client.ini
+`centreon -u admin -p $centreon_admin_password -o HOST -a setmacro -v "$host_name;[/includes],client;$http_client_dir/client.ini"`;
+`centreon -u admin -p $centreon_admin_password -o HOST -a setmacro -v "$host_name;[/settings/nsca/client],hostname;$host_name"`;
 
 
 # Generation de la config centreon 'Central'
@@ -279,19 +300,7 @@ echo "OK !" >> $logfile
 #
 # PHASE 1 : temp
 
-# Definition des repertoires ftp du client
-#host_court=${host_name%%.*}
-host_domaine=${host_name#*.}
 
-#ftp_temp_config_dir="$ftp_temp_config_dir/$host_name-$host_ip_address"
-http_temp_config_dir="http://monitoring.it-bs.fr/nsclient/$relative_temp_config_dir"
-http_temp_config_dir=$(echo $http_temp_config_dir | sed -e 's/\//\\\//g')
-
-ftp_client_dir="nsclient/$relative_config_dir/$host_domaine"
-http_client_dir="http://monitoring.it-bs.fr/$ftp_client_dir"
-http_config_file="$http_client_dir/$host_id/nsclient.ini"
-http_config_file=$(echo $http_config_file | sed -e 's/\//\\\//g')
-http_client_dir2=$(echo $http_client_dir | sed -e 's/\//\\\//g')
 
 
 
@@ -383,44 +392,59 @@ else
 	echo "Le fichier $http_client_dir/client.ini existe : rien a faire" | tee -a $logfile
 fi
 
-# remplacements nsclient.ini
-if [ ! -e $ressource_nsclient_2 ] ; then
-	error_message="Le fichier $ressource_nsclient_2 n'existe pas"
-	echo "$error_message" | tee -a $logfile
+# # remplacements nsclient.ini
+# if [ ! -e $ressource_nsclient_2 ] ; then
+	# error_message="Le fichier $ressource_nsclient_2 n'existe pas"
+	# echo "$error_message" | tee -a $logfile
+	# printf "[%lu] PROCESS_HOST_CHECK_RESULT;$2;1;$error_message" $now > $commandfile
+	# exit 2
+# fi
+
+# echo "Remplacements nsclient.ini" | tee -a $logfile
+
+# sed "s/@@HOSTNAME@@/$host_name/g" $ressource_nsclient_2 > $local_nsclient_temp
+# sed -i "s/@@HTTP_SCRIPTDIR@@/$http_script_dir/g" $local_nsclient_temp
+# sed -i "s/@@HTTP_CONFIGFILE@@/$http_config_file/g" $local_nsclient_temp
+# sed -i "s/@@HTTP_BASELINEDIR@@/$http_baseline_dir/g" $local_nsclient_temp
+# sed -i "s/@@HTTP_CLIENTDIR@@/$http_client_dir2/g" $local_nsclient_temp
+# sed -i "s/@@CENTREON_DISTANT@@/$centreon_distant_address/g" $local_nsclient_temp
+
+# # copier le fichier vers le ftp
+# echo "depose de nsclient.ini sur le FTP ($path_to_nsclient_config/$relative_config_dir/$host_domaine/$host_id)" >>$logfile
+
+# mkdir -p $path_to_nsclient_config/$relative_config_dir/$host_domaine/$host_id
+# mv $path_to_nsclient_config/$relative_config_dir/$host_domaine/$host_id/nsclient.ini $path_to_nsclient_config/$relative_config_dir/$host_domaine/$host_id/nsclient.old
+# cp $local_nsclient_temp $path_to_nsclient_config/$relative_config_dir/$host_domaine/$host_id/nsclient.ini
+# # ftp $ftp_site_addr <<EOF
+# # $(ftp_mkdir "$ftp_client_dir/$host_id")
+# # binary
+# # rename nsclient.ini nsclient.old
+# # put $local_nsclient_temp nsclient.ini
+# # quit
+# # EOF
+
+# #rm -f $local_nsclient_temp
+# mkdir -p $tempdir/$ftp_client_dir/$host_id
+# mv -f $local_nsclient_temp $tempdir/$ftp_client_dir/$host_id/nsclient.ini
+
+# Generation nsclient.ini
+echo "Creation fichier vierge nsclient.ini" | tee -a $logfile
+mkdir -p $path_to_nsclient_config/$relative_config_dir/$host_domaine/$host_id
+# mv $path_to_nsclient_config/$relative_config_dir/$host_domaine/$host_id/nsclient.ini $path_to_nsclient_config/$relative_config_dir/$host_domaine/$host_id/nsclient.old
+touch $path_to_nsclient_config/$relative_config_dir/$host_domaine/$host_id/nsclient.ini
+
+# Generation de la config auto
+echo "Commande pot-generation" >> $logfile
+error_message=$(perl /usr/lib/nagios/plugins/itbs/config_auto/generate_config_ftp.pl)
+if [ $? -eq 1 ] ; then
+	echo $error_message | tee -a $logfile
+	echo "generate_config.pl : erreur a l'execution => EXIT" | tee -a $logfile
 	printf "[%lu] PROCESS_HOST_CHECK_RESULT;$2;1;$error_message" $now > $commandfile
-	exit 2
+	exit 3
+else
+    echo $error_message | tee -a $logfile
 fi
 
-echo "Remplacements nsclient.ini" | tee -a $logfile
-
-sed "s/@@HOSTNAME@@/$host_name/g" $ressource_nsclient_2 > $local_nsclient_temp
-sed -i "s/@@HTTP_SCRIPTDIR@@/$http_script_dir/g" $local_nsclient_temp
-sed -i "s/@@HTTP_CONFIGFILE@@/$http_config_file/g" $local_nsclient_temp
-sed -i "s/@@HTTP_BASELINEDIR@@/$http_baseline_dir/g" $local_nsclient_temp
-sed -i "s/@@HTTP_CLIENTDIR@@/$http_client_dir2/g" $local_nsclient_temp
-sed -i "s/@@CENTREON_DISTANT@@/$centreon_distant_address/g" $local_nsclient_temp
-
-# copier le fichier vers le ftp
-echo "depose de nsclient.ini sur le FTP ($path_to_nsclient_config/$relative_config_dir/$host_domaine/$host_id)" >>$logfile
-
-mkdir -p $path_to_nsclient_config/$relative_config_dir/$host_domaine/$host_id
-mv $path_to_nsclient_config/$relative_config_dir/$host_domaine/$host_id/nsclient.ini $path_to_nsclient_config/$relative_config_dir/$host_domaine/$host_id/nsclient.old
-cp $local_nsclient_temp $path_to_nsclient_config/$relative_config_dir/$host_domaine/$host_id/nsclient.ini
-# ftp $ftp_site_addr <<EOF
-# $(ftp_mkdir "$ftp_client_dir/$host_id")
-# binary
-# rename nsclient.ini nsclient.old
-# put $local_nsclient_temp nsclient.ini
-# quit
-# EOF
-
-#rm -f $local_nsclient_temp
-mkdir -p $tempdir/$ftp_client_dir/$host_id
-mv -f $local_nsclient_temp $tempdir/$ftp_client_dir/$host_id/nsclient.ini
-
-
-# echo "Sync avec FTP externe" >&2 >> $logfile
-# $sync_ftp_cmd | tee -a $logfile
 
 # Reset host status a ok
 if [ "$host_update" == "true" ] ; then
