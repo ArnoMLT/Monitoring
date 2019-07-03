@@ -81,7 +81,7 @@ if not exist "%Work_Dir%\..\nsclient" md "%Work_Dir%\..\nsclient"
 REM TEMP 11/02/19
 REM remise en route forcee tache restart
 rem schtasks /Change /TN "NSClient++ Service restart" /enable >NUL
-schtasks /run /TN "NSClient++ Service restart"
+rem schtasks /run /TN "NSClient++ Service restart"
 REM ---
 
 REM Recupere la liste des fichiers à télécharger

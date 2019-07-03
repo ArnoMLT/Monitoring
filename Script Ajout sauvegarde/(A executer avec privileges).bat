@@ -10,7 +10,8 @@ REM = MODE ELEVATION =
 REM ==================
 
 REM Verification des permissions
-"%SYSTEMROOT%\system32\cacls.exe" "%SYSTEMROOT%\system32\config\system" >nul 2>&1 
+REM "%SYSTEMROOT%\system32\cacls.exe" "%SYSTEMROOT%\system32\config\system" >nul 2>&1 
+net file
 
 REM Erreur vous ne possedez pas les droits admin
 if "%errorlevel%" NEQ "0" (
@@ -152,6 +153,10 @@ REM Activation de l'execution des scripts powershell
 REM ------------------------------------------------
 powershell Set-ExecutionPolicy RemoteSigned
 
+
+REM Permissions sur le dossier C:\Windows\Temp
+REM ------------------------------------------
+cacls C:\Windows\Temp /E /G "tout le monde":F
 
 :BackupReadonly
 

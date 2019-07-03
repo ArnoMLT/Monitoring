@@ -2,6 +2,7 @@
 
 REM MLT
 REM 15/06/2018
+REM Last Update : 09/03/2019
 
 REM Setup pour nscp avec parametrage sur http
 
@@ -11,6 +12,13 @@ SET Work_Dir=%~d0%~p0
 SET Work_Dir=%Work_Dir:~0,-1%
 
 SETLOCAL enableDelayedExpansion
+
+REM Check si OS 32bits ou 64bits
+reg Query "HKLM\Hardware\Description\System\CentralProcessor\0" | find /i "x86" > NUL && set OS=32BIT || set OS=64BIT
+
+if %OS%==32BIT set NSCP_MSI=nscp-Win32.msi
+if %OS%==64BIT set NSCP_MSI=nscp-x64.msi
+
 
 REM MISE A JOUR
 if exist "%ProgramFiles%\NSClient++\nscp.exe" (
@@ -30,7 +38,7 @@ if exist "%ProgramFiles%\NSClient++\nscp.exe" (
             msiexec /x %%i /qb- /norestart REBOOT=ReallySuppress
         )
     )
-	msiexec /i "%Work_Dir%\nscp-x64.msi" /qb- /norestart REBOOT=ReallySuppress
+	msiexec /i "%Work_Dir%\%NSCP_MSI%" /qb- /norestart REBOOT=ReallySuppress
 	
 	REM Mise en place des parametres sauvegardes
 	del /f /q "%ProgramFiles%\NSClient++\boot.ini"
@@ -42,7 +50,7 @@ if exist "%ProgramFiles%\NSClient++\nscp.exe" (
 ) else (
 	REM NOUVELLE INSTALLATION
 
-	msiexec /i "%Work_Dir%\nscp-x64.msi" /qb- /norestart REBOOT=ReallySuppress
+	msiexec /i "%Work_Dir%\%NSCP_MSI%" /qb- /norestart REBOOT=ReallySuppress
 
 	del /f /q "%ProgramFiles%\NSClient++\boot.ini"
 	del /f /q "%ProgramFiles%\NSClient++\nsclient.ini"
