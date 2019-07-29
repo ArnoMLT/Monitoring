@@ -23,20 +23,19 @@ THE SOFTWARE.
 
 -----------------------------
 
-v1.0 2016-03-08
+v2.0 2019-07-26
+MLT
 Initial release
+
+Usage : check_usolved_veeam_backups [-nsca] [-excluded_jobs 'job-1_name'[,'job-2_name']]
 #>
 
 #Get arguments
 param(
-[string]$excluded_jobs = "",
+$excluded_jobs = "",
 [switch]$nsca
 )
 
-if($excluded_jobs -ne "")
-{
-	$excluded_jobs_array = $excluded_jobs.Split(",")
-}
 
 try{
 
@@ -90,7 +89,7 @@ try{
 		#skip disabled jobs	
 		if ($jobCanRunByScheduler -eq $false)
 		{
-			if($excluded_jobs_array -ne $null -and $excluded_jobs_array -contains $job.Name)
+			if($excluded_jobs -ne $null -and $excluded_jobs -contains $job.Name)
 			{
 				$output_jobs_skipped_counter++
 			}
@@ -127,7 +126,7 @@ try{
 					
 				}elseif($status -eq "Failed")
 				{
-					if($excluded_jobs_array -ne $null -and $excluded_jobs_array -contains $job.Name)
+					if($excluded_jobs -ne $null -and $excluded_jobs -contains $job.Name)
 					{
 						$output_jobs_skipped_counter++
 					}
@@ -140,7 +139,7 @@ try{
 				}
 				elseif($status -eq "Warning")
 				{
-					if($excluded_jobs_array -ne $null -and $excluded_jobs_array -contains $job.Name)
+					if($excluded_jobs -ne $null -and $excluded_jobs -contains $job.Name)
 					{
 						$output_jobs_skipped_counter++
 					}
@@ -213,9 +212,13 @@ try{
 	}
 	
 	
-	if($nagios_state -eq 1 -or $nagios_state -eq 2)
+	if($nagios_state -eq 1)
 	{
-		Write-Host "Backup Status - Failed: "$output_jobs_failed_counter" / Warning: "$output_jobs_warning_counter" / OK: "$output_jobs_success_counter" / None: "$output_jobs_none_counter" / Skipped: "$output_jobs_skipped_counter" / Disabled: "$output_jobs_disabled_counter $nagios_output
+		Write-Host "WARNING: Backup Status - Failed: "$output_jobs_failed_counter" / Warning: "$output_jobs_warning_counter" / OK: "$output_jobs_success_counter" / None: "$output_jobs_none_counter" / Skipped: "$output_jobs_skipped_counter" / Disabled: "$output_jobs_disabled_counter $nagios_output
+	}
+	elseif ($nagios_state -eq 2)
+	{
+		Write-Host "CRITICAL: Backup Status - Failed: "$output_jobs_failed_counter" / Warning: "$output_jobs_warning_counter" / OK: "$output_jobs_success_counter" / None: "$output_jobs_none_counter" / Skipped: "$output_jobs_skipped_counter" / Disabled: "$output_jobs_disabled_counter $nagios_output
 	}
 	else
 	{

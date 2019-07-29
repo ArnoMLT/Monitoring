@@ -8,7 +8,7 @@ Check des backup Copy Job
 
 #Get arguments
 param(
-[string]$excluded_jobs = "",
+$excluded_jobs = "",
 [switch]$nsca
 )
 
@@ -74,7 +74,7 @@ try{
 		
 		#skip disabled jobs
 		if ($jobCanRunByScheduler -eq $false){
-			if($excluded_jobs_array -ne $null -and $excluded_jobs_array -contains $job.Name){
+			if($excluded_jobs -ne $null -and $excluded_jobs -contains $job.Name){
 				$output_jobs_skipped_counter++
 			}else{
 				#Difference entre non planifie et disabled
@@ -95,7 +95,7 @@ try{
 			
 			if($state -eq "Idle"){			
 				if($Status -eq "Failed"){
-					if($excluded_jobs_array -ne $null -and $excluded_jobs_array -contains $job.Name){
+					if($excluded_jobs -ne $null -and $excluded_jobs -contains $job.Name){
 						$output_jobs_skipped_counter++
 					}else{
 						$output_jobs_failed += $job.Name + " (" + $progress + "%) - Last status: " + $Status + " ($PreviousSessionDate)" + ", "
@@ -103,7 +103,7 @@ try{
 						$output_jobs_failed_counter++
 					}
 				}elseif($Status -eq "Warning"){
-					if($excluded_jobs_array -ne $null -and $excluded_jobs_array -contains $job.Name)
+					if($excluded_jobs -ne $null -and $excluded_jobs -contains $job.Name)
 					{
 						$output_jobs_skipped_counter++
 					}else{
@@ -210,11 +210,13 @@ try{
 		$nagios_output = $nagios_output.replace("`n", "\n")
 	}
 	
-	#if($nagios_state -eq 1 -or $nagios_state -eq 2){
-		Write-Host "Backup Copy Status - OK:"$output_jobs_success_counter" / Working: "$output_jobs_working_counter" / Failed: "$output_jobs_failed_counter" / Warning: "$output_jobs_warning_counter" / None: "$output_jobs_none_counter" / Skipped: "$output_jobs_skipped_counter" / Disabled: "$output_jobs_disabled_counter $nagios_output
-	#}else{
-	#	Write-Host "Backup Copy Status - All "$output_jobs_success_counter" jobs successful"
-	#}
+	if($nagios_state -eq 1){
+		Write-Host "WARNING: OK:"$output_jobs_success_counter" / Working: "$output_jobs_working_counter" / Failed: "$output_jobs_failed_counter" / Warning: "$output_jobs_warning_counter" / None: "$output_jobs_none_counter" / Skipped: "$output_jobs_skipped_counter" / Disabled: "$output_jobs_disabled_counter $nagios_output
+	}elseif ($nagios_state -eq 2){
+		Write-Host "CRITICAL: OK:"$output_jobs_success_counter" / Working: "$output_jobs_working_counter" / Failed: "$output_jobs_failed_counter" / Warning: "$output_jobs_warning_counter" / None: "$output_jobs_none_counter" / Skipped: "$output_jobs_skipped_counter" / Disabled: "$output_jobs_disabled_counter $nagios_output
+	}else{
+		Write-Host "OK: OK:"$output_jobs_success_counter" / Working: "$output_jobs_working_counter" / Failed: "$output_jobs_failed_counter" / Warning: "$output_jobs_warning_counter" / None: "$output_jobs_none_counter" / Skipped: "$output_jobs_skipped_counter" / Disabled: "$output_jobs_disabled_counter $nagios_output
+	}
 
 
 	exit $nagios_state
